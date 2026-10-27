@@ -41,7 +41,7 @@ export function createApp(options = {}) {
     res.set('Cache-Control', 'no-store');
     res.set(
       'Content-Security-Policy',
-      "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+      "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
     );
     next();
   });
@@ -158,6 +158,19 @@ export function createApp(options = {}) {
   };
   app.post('/auth/logout', logout);
   app.get('/auth/logout', logout);
+
+  const dashboardScript = path.join(appDir, 'public', 'dashboard', 'dashboard.js');
+  app.get('/dashboard-assets/dashboard.js', (req, res) => {
+    if (!readSession(req)) {
+      res.status(401).type('text/plain').send('unauthorized');
+      return;
+    }
+    res.type('application/javascript');
+    res.sendFile(dashboardScript, (error) => {
+      if (!error || res.headersSent) return;
+      res.status(404).type('text/plain').send('not found');
+    });
+  });
 
   app.get('/api/forecast', (req, res) => {
     const session = readSession(req);

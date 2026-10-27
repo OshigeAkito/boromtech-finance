@@ -76,11 +76,13 @@ test('a decimal-string fixture loads and keeps cents in the running balance', ()
     email: 'investor@example.com',
     name: 'Example Investor',
   });
-  assert.match(html, /รายการบี <span class="assumption">\(สมมติ\)<\/span>/);
-  assert.equal(html.includes('รายการเอ <span class="assumption">'), false);
-  assert.match(html, /เปิดตัวอย่าง <span class="assumption">\(สมมติ\)<\/span>/);
-  assert.match(html, /<h4>กลุ่มเอ<\/h4>/);
-  assert.match(html, /<h4>กลุ่มบี<\/h4>/);
-  assert.match(html, /105\.50 THB/);
+  assert.match(html, /รายจ่าย: รายการบี <span class="assumption">\(สมมติ\)<\/span>/);
+  assert.equal(html.includes('รายจ่าย: รายการเอ <span class="assumption">'), false);
+  assert.match(html, /ทุนเริ่มต้น \(ยอดยกมา\) <span class="assumption">\(สมมติ\)<\/span>/);
+  assert.match(html, /<th scope="row">กลุ่มเอ<\/th>/);
+  assert.match(html, /<th scope="row">รายการซี<\/th>/);
+  assert.match(html, />105\.50</);
+  assert.match(html, />104\.00</);
   assert.equal(html.includes('class="example-banner"'), false);
+  assert.equal(html.includes(' THB'), false);
 });

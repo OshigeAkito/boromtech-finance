@@ -38,6 +38,19 @@ test('unauthenticated pages redirect and data endpoints return 401', async () =>
     const html = await login.text();
     assert.match(html, /เข้าสู่ระบบด้วย Google/);
     assert.equal(html.includes(example.company), false);
+    assert.equal(html.includes('1,000,000.00'), false);
+    assert.equal(html.includes('เงินทุนสิ้นเดือน'), false);
+    assert.equal(html.includes('/dashboard-assets/dashboard.js'), false);
+
+    const dash = await fetch(`${base}/dashboard`, { redirect: 'manual' });
+    assert.equal(dash.status, 302);
+    assert.equal(new URL(dash.headers.get('location'), base).pathname, '/login');
+
+    const script = await fetch(`${base}/dashboard-assets/dashboard.js`, { redirect: 'manual' });
+    assert.equal(script.status, 401);
+    const scriptBody = await script.text();
+    assert.equal(scriptBody.includes(example.company), false);
+    assert.equal(scriptBody.includes('1,000,000.00'), false);
 
     const css = await fetch(`${base}/login-assets/login.css`);
     assert.equal(css.status, 200);
@@ -95,6 +108,21 @@ test('an allowed email can read the forecast, then log out', async () => {
     assert.equal(html.includes(example.assumptions[0]), true);
     assert.equal(html.includes(example.notYetIncluded[0]), true);
     assert.equal(html.includes('investor@example.com'), true);
+    assert.match(html, /เงินทุนสิ้นเดือน/);
+    assert.match(html, /<script src="\/dashboard-assets\/dashboard\.js" defer><\/script>/);
+    assert.equal(/<script(?![^>]*\bsrc=)/i.test(html), false);
+    const csp = page.headers.get('content-security-policy');
+    assert.match(csp, /script-src 'self'/);
+    assert.equal(/script-src[^;]*unsafe-inline/.test(csp), false);
+
+    const script = await fetch(`${base}/dashboard-assets/dashboard.js`, { headers: { cookie: result.jar } });
+    assert.equal(script.status, 200);
+    assert.match(script.headers.get('content-type'), /javascript/);
+    const source = await script.text();
+    assert.match(source, /expand-all/);
+    assert.match(source, /aria-expanded/);
+    assert.equal(source.includes(example.company), false);
+    assert.equal(/\d{5,}/.test(source), false);
 
     const loggedOut = await fetch(`${base}/auth/logout`, {
       method: 'POST',

@@ -54,7 +54,7 @@
 | `revenue` | decimal string |
 | `items` | array |
 
-แต่ละรายการใน `items`: `group`, `groupName`, `name` เป็น string, `amount` เป็น decimal string, `assumed` เป็น boolean รายการที่ `assumed` เป็นจริงจะติดป้าย `(สมมติ)` และหน้าเว็บจัดกลุ่มตาม `groupName`
+แต่ละรายการใน `items`: `group`, `groupName`, `name` เป็น string, `amount` เป็น decimal string, `assumed` เป็น boolean รายการที่ `assumed` เป็นจริงจะติดป้าย `(สมมติ)` ตารางรายจ่ายรวมใช้ `group` เป็นคีย์ ถ้าทุกรายการในกลุ่มนั้นใช้ `name` เดียวกัน ป้ายคือชื่อนั้น มิฉะนั้นใช้ `groupName`
 
 ยอดสิ้นเดือน = ยอดก่อนหน้า + `revenue` − ผลรวม `items.amount` เดือนแรกใช้ `openingCapital.amount` เป็นยอดก่อนหน้า
 
@@ -138,4 +138,4 @@ npm run dev
 
 เปิด `http://localhost:3000` ถ้าไม่ใส่ไฟล์จริง จะเห็นแบนเนอร์ตัวอย่าง
 
-เส้นทางที่เปิดได้โดยไม่ต้องล็อกอินมีแค่หน้าเข้าสู่ระบบ, ไฟล์หน้าตาของหน้านั้น (`/login-assets/`), จุดเริ่ม Google (`/auth/google`), callback (`/auth/google/callback`), ออกจากระบบ, และ `/health` ข้อมูลอยู่ที่ `/` และ `/api/forecast` ซึ่งต้องมีเซสชัน ไม่มีเซสชันแล้ว `/api/forecast` ตอบ 401
+เส้นทางที่เปิดได้โดยไม่ต้องล็อกอินมีแค่หน้าเข้าสู่ระบบ, ไฟล์หน้าตาของหน้านั้น (`/login-assets/`), จุดเริ่ม Google (`/auth/google`), callback (`/auth/google/callback`), ออกจากระบบ, และ `/health` ข้อมูลอยู่ที่ `/` และ `/api/forecast` ซึ่งต้องมีเซสชัน ไม่มีเซสชันแล้ว `/` และ `/dashboard` เด้งไปหน้าเข้าสู่ระบบ และ `/api/forecast` ตอบ 401 สคริปต์ขยายแถวของแดชบอร์ดอยู่ที่ `/dashboard-assets/dashboard.js` และต้องมีเซสชันเช่นกัน
