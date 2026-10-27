@@ -1,0 +1,29 @@
+# Render Blueprint. Secret values are entered in the dashboard (sync: false).
+# The real forecast is NOT an env var. Add a Secret File named forecast.json.
+# Render mounts it at /etc/secrets/forecast.json.
+services:
+  - type: web
+    name: boromtech-finance
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    autoDeployTrigger: commit
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: ALLOWED_EMAILS
+        sync: false
+      - key: BASE_URL
+        sync: false
+      - key: FORECAST_PATH
+        sync: false
