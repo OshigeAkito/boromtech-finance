@@ -115,16 +115,38 @@ test('the example banner is shown only when the example file is served', async (
   const real = {
     company: 'บริษัท สมมติสอง จำกัด',
     currency: 'THB',
-    registeredCapital: 3000000,
-    openingCapital: 400000,
-    fx: { USDTHB: 40, note: 'rate for the temp fixture' },
-    balanceFormula: 'closing = opening + in - out',
+    registeredCapital: '3000000.00',
+    openingCapital: {
+      amount: '400000.00',
+      sharePercent: 10,
+      assumed: false,
+      label: 'ทุนเปิดทดสอบ',
+      timing: 'ต้นงวดทดสอบ',
+    },
+    fx: {
+      base: 'USD',
+      quote: 'THB',
+      rate: '40.00',
+      source: 'fixture',
+      updatedAt: '2026-04-01',
+      updatedDisplay: 'เมษายน 2026',
+    },
+    balanceFormula: 'previous + revenue - items',
     months: [
       {
-        month: '2026-04',
-        label: 'เมษายน 2026',
-        inflows: [{ name: 'รายการทดสอบ', amount: 10000 }],
-        outflows: [{ name: 'รายการทดสอบสอง', amount: 5000 }],
+        key: '2026-04',
+        label: 'เม.ย.',
+        labelFull: 'เมษายน 2026',
+        revenue: '10000.00',
+        items: [
+          {
+            group: 'test',
+            groupName: 'กลุ่มทดสอบ',
+            name: 'รายการทดสอบ',
+            amount: '5000.00',
+            assumed: false,
+          },
+        ],
       },
     ],
     assumptions: ['สมมติฐานสำหรับไฟล์ทดสอบ'],
@@ -306,7 +328,7 @@ test('forecast HTML escapes text from the file', async () => {
 
 test('example months project a running balance from opening capital', () => {
   const months = projectMonths(example);
-  assert.equal(months[0].closing, 870000);
-  assert.equal(months[1].closing, 800000);
-  assert.equal(months[2].closing, 680000);
+  assert.equal(months[0].closingCents, 87000000n);
+  assert.equal(months[1].closingCents, 80000000n);
+  assert.equal(months[2].closingCents, 68000000n);
 });
