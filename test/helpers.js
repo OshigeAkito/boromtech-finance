@@ -81,6 +81,12 @@ export function mergeCookies(previous, response) {
   return [...jar.entries()].map(([name, value]) => `${name}=${value}`).join('; ');
 }
 
+export function csrfFrom(html) {
+  const match = html.match(/name="csrf" value="([^"]+)"/);
+  if (!match) throw new Error('missing csrf token');
+  return match[1];
+}
+
 export async function signIn(base, code) {
   const start = await fetch(`${base}/auth/google`, { redirect: 'manual' });
   const startJar = mergeCookies('', start);

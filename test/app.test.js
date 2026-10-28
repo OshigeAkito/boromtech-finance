@@ -1,22 +1,20 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { createMemoryStore } from '../lib/memory-store.js';
 import { createApp } from '../server.js';
-import { EXAMPLE_BANNER, projectMonths } from '../lib/forecast.js';
-import { baseEnv, createFakeOidc, mergeCookies, signIn, withServer } from './helpers.js';
+import { projectMonths } from '../lib/forecast.js';
+import { baseEnv, createFakeOidc, csrfFrom, mergeCookies, signIn, withServer } from './helpers.js';
 
 const examplePath = path.join(import.meta.dirname, '..', 'data', 'forecast.example.json');
 const example = JSON.parse(fs.readFileSync(examplePath, 'utf8'));
 
 function appWith(extraEnv = {}, options = {}) {
   const oidc = options.oidc ?? createFakeOidc();
-  const env = baseEnv({
-    FORECAST_PATH: path.join(os.tmpdir(), 'missing-forecast-does-not-exist.json'),
-    ...extraEnv,
-  });
-  return { app: createApp({ env, oidc, ...options.app }), oidc, env };
+  const env = baseEnv(extraEnv);
+  const store = options.store === undefined ? createMemoryStore(options.forecast ?? example) : options.store;
+  return { app: createApp({ env, oidc, store, ...options.app }), oidc, env, store };
 }
 
 test('unauthenticated pages redirect and data endpoints return 401', async () => {
@@ -95,16 +93,15 @@ test('an allowed email can read the forecast, then log out', async () => {
     const api = await fetch(`${base}/api/forecast`, { headers: { cookie: result.jar } });
     assert.equal(api.status, 200);
     const body = await api.json();
-    assert.equal(body.example, true);
-    assert.equal(body.banner, EXAMPLE_BANNER);
+    assert.equal(body.example, false);
+    assert.equal(body.banner, null);
     assert.equal(body.forecast.company, example.company);
     assert.equal(body.forecast.registeredCapital, example.registeredCapital);
 
     const page = await fetch(`${base}/`, { headers: { cookie: result.jar } });
     assert.equal(page.status, 200);
     const html = await page.text();
-    assert.equal(html.includes(EXAMPLE_BANNER), true);
-    assert.match(html, /class="example-banner"/);
+    assert.equal(html.includes('class="example-banner"'), false);
     assert.equal(html.includes(example.assumptions[0]), true);
     assert.equal(html.includes(example.notYetIncluded[0]), true);
     assert.equal(html.includes('investor@example.com'), true);
@@ -127,7 +124,11 @@ test('an allowed email can read the forecast, then log out', async () => {
     const loggedOut = await fetch(`${base}/auth/logout`, {
       method: 'POST',
       redirect: 'manual',
-      headers: { cookie: result.jar },
+      headers: {
+        cookie: result.jar,
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({ csrf: csrfFrom(html) }),
     });
     assert.equal(loggedOut.status, 302);
     const cleared = mergeCookies(result.jar, loggedOut);
@@ -137,51 +138,12 @@ test('an allowed email can read the forecast, then log out', async () => {
   });
 });
 
-test('the example banner is shown only when the example file is served', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'forecast-'));
-  const realFile = path.join(dir, 'forecast.json');
-  const real = {
-    company: 'บริษัท สมมติสอง จำกัด',
-    currency: 'THB',
-    registeredCapital: '3000000.00',
-    openingCapital: {
-      amount: '400000.00',
-      sharePercent: 10,
-      assumed: false,
-      label: 'ทุนเปิดทดสอบ',
-      timing: 'ต้นงวดทดสอบ',
-    },
-    fx: {
-      base: 'USD',
-      quote: 'THB',
-      rate: '40.00',
-      source: 'fixture',
-      updatedAt: '2026-04-01',
-      updatedDisplay: 'เมษายน 2026',
-    },
-    balanceFormula: 'previous + revenue - items',
-    months: [
-      {
-        key: '2026-04',
-        label: 'เม.ย.',
-        labelFull: 'เมษายน 2026',
-        revenue: '10000.00',
-        items: [
-          {
-            group: 'test',
-            groupName: 'กลุ่มทดสอบ',
-            name: 'รายการทดสอบ',
-            amount: '5000.00',
-            assumed: false,
-          },
-        ],
-      },
-    ],
-    assumptions: ['สมมติฐานสำหรับไฟล์ทดสอบ'],
-    notYetIncluded: ['รายการที่ยังไม่ใส่ในไฟล์ทดสอบ'],
-  };
-  fs.writeFileSync(realFile, JSON.stringify(real));
-  const { app } = appWith({ FORECAST_PATH: realFile });
+test('the dashboard renders the saved forecast without the example banner', async () => {
+  const real = structuredClone(example);
+  delete real.notice;
+  real.company = 'บริษัท สมมติสอง จำกัด';
+  real.registeredCapital = '3000000.00';
+  const { app } = appWith({}, { forecast: real });
   await withServer(app, async (base) => {
     const result = await signIn(base, 'allowed');
     const api = await fetch(`${base}/api/forecast`, { headers: { cookie: result.jar } });
@@ -190,32 +152,30 @@ test('the example banner is shown only when the example file is served', async (
     assert.equal(body.banner, null);
     assert.equal(body.forecast.company, real.company);
     const html = await (await fetch(`${base}/`, { headers: { cookie: result.jar } })).text();
-    assert.equal(html.includes(EXAMPLE_BANNER), false);
     assert.equal(html.includes('class="example-banner"'), false);
     assert.equal(html.includes(real.company), true);
-  });
-
-  const { app: exampleApp } = appWith({ FORECAST_PATH: examplePath });
-  await withServer(exampleApp, async (base) => {
-    const result = await signIn(base, 'allowed');
-    const body = await (await fetch(`${base}/api/forecast`, { headers: { cookie: result.jar } })).json();
-    assert.equal(body.example, true);
-    assert.equal(body.banner, EXAMPLE_BANNER);
+    assert.equal(html.includes('supabase'), false);
   });
 });
 
-test('a present but unreadable forecast does not fall open to silent success', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'forecast-bad-'));
-  const file = path.join(dir, 'forecast.json');
-  fs.writeFileSync(file, JSON.stringify({ company: 'MARKER_COMPANY_XYZ' }));
-  const { app } = appWith({ FORECAST_PATH: file });
+test('a store read failure does not echo the underlying error', async () => {
+  const marker = 'MARKER_COMPANY_XYZ';
+  const { app } = appWith({}, {
+    store: {
+      configured: true,
+      async loadForecast() {
+        throw new Error(marker);
+      },
+    },
+  });
   await withServer(app, async (base) => {
     const result = await signIn(base, 'allowed');
     const api = await fetch(`${base}/api/forecast`, { headers: { cookie: result.jar } });
     assert.equal(api.status, 500);
     const text = await api.text();
-    assert.equal(text.includes('MARKER_COMPANY_XYZ'), false);
-    assert.equal(text.includes(EXAMPLE_BANNER), false);
+    assert.equal(text.includes(marker), false);
+    const health = await fetch(`${base}/health`);
+    assert.equal(health.status, 200);
   });
 });
 
@@ -292,10 +252,8 @@ test('production session cookies are httpOnly, secure, and sameSite=lax', async 
 test('expired, tampered, and cross-secret sessions are rejected', async () => {
   let clock = Date.parse('2026-01-01T00:00:00Z');
   const oidc = createFakeOidc();
-  const env = baseEnv({
-    FORECAST_PATH: path.join(os.tmpdir(), 'missing-forecast-clock.json'),
-  });
-  const app = createApp({ env, oidc, now: () => clock });
+  const env = baseEnv();
+  const app = createApp({ env, oidc, now: () => clock, store: createMemoryStore(example) });
   await withServer(app, async (base) => {
     const result = await signIn(base, 'allowed');
     clock += 6 * 24 * 60 * 60 * 1000;
@@ -338,14 +296,11 @@ test('a mismatched oauth state does not create a session', async () => {
   });
 });
 
-test('forecast HTML escapes text from the file', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'forecast-escape-'));
-  const file = path.join(dir, 'forecast.json');
+test('forecast HTML escapes text from the saved forecast', async () => {
   const data = structuredClone(example);
   delete data.notice;
   data.company = '<script>alert(1)</script>';
-  fs.writeFileSync(file, JSON.stringify(data));
-  const { app } = appWith({ FORECAST_PATH: file });
+  const { app } = appWith({}, { forecast: data });
   await withServer(app, async (base) => {
     const result = await signIn(base, 'allowed');
     const html = await (await fetch(`${base}/`, { headers: { cookie: result.jar } })).text();

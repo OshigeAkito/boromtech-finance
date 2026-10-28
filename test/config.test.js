@@ -19,5 +19,7 @@ test('readConfig fails closed when a required value is blank', () => {
   assert.equal(config.ok, false);
   assert.deepEqual(config.missing, ['SESSION_SECRET']);
   assert.equal(config.baseUrl, 'https://app.example');
-  assert.equal(config.forecastPath, '/etc/secrets/forecast.json');
+  assert.equal(config.missing.includes('SUPABASE_URL'), false);
+  assert.equal(config.supabaseUrl, '');
+  assert.equal(config.supabaseServiceRoleKey, '');
 });
