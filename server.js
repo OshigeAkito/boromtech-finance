@@ -22,6 +22,8 @@ import {
   plannedPage,
 } from './lib/manage-pages.js';
 import { parseMultipart } from './lib/multipart.js';
+import { parseOfficeRoleAssignments, resolveOfficeRole } from './lib/office-access.js';
+import { officeHomePage } from './lib/office-page.js';
 import { dashboardPage, loginPage, noAccessPage, notFoundPage } from './lib/pages.js';
 import { advanceFormPage } from './lib/reimburse-page.js';
 import {
@@ -56,6 +58,7 @@ export function createApp(options = {}) {
     serviceRoleKey: config.supabaseServiceRoleKey,
     fetch: options.fetchImpl,
   });
+  const officeRoles = parseOfficeRoleAssignments(env.OFFICE_ROLES);
 
   const app = express();
   app.disable('x-powered-by');
@@ -233,6 +236,19 @@ export function createApp(options = {}) {
       res.status(404).type('text/plain').send('not found');
     });
   });
+
+  app.use('/office-assets', (req, res, next) => {
+    if (!readSession(req)) {
+      res.status(401).type('text/plain').send('unauthorized');
+      return;
+    }
+    next();
+  }, express.static(path.join(appDir, 'public', 'office'), {
+    index: false,
+    dotfiles: 'deny',
+    redirect: false,
+    fallthrough: false,
+  }));
 
   app.get('/app-assets/:name', (req, res) => {
     if (!readSession(req)) {
@@ -682,6 +698,14 @@ export function createApp(options = {}) {
   // Reimbursement forms are printed from each actual expense now.
   app.get('/reimburse', (req, res) => {
     res.redirect(301, '/actual');
+  });
+
+  // Sample Office Portal home. Figures are fixtures; role comes from OFFICE_ROLES.
+  app.get('/office', (req, res) => {
+    const session = requireUser(req, res);
+    if (!session) return;
+    const role = resolveOfficeRole(session.email, officeRoles);
+    res.type('html').send(officeHomePage({ role, csrf: session.csrf }));
   });
 
   app.use((req, res) => {
