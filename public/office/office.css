@@ -557,7 +557,7 @@ a { color: inherit; text-decoration: none; }
 }
 
 .expense-label { flex: 1; min-width: 0; }
-.expense-month { flex: none; width: 36px; text-align: right; }
+.expense-month { flex: none; min-width: 36px; text-align: right; }
 .expense-amount { flex: none; white-space: nowrap; }
 
 .announce {
@@ -756,6 +756,30 @@ a { color: inherit; text-decoration: none; }
   align-items: flex-start;
   gap: var(--bt-space-12);
 }
+
+.saved-note { color: var(--bt-color-text-primary); }
+
+.expense-form form,
+.form-grid,
+.field { display: flex; flex-direction: column; gap: var(--bt-space-8); }
+.expense-form form { gap: var(--bt-space-16); }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--bt-space-12); }
+.field input,
+.field select {
+  border: 1px solid var(--bt-color-border-default);
+  border-radius: var(--bt-radius-sm);
+  padding: 10px 12px;
+  background: var(--bt-color-bg-surface);
+  color: var(--bt-color-text-primary);
+}
+.kind-row, .check-row, .form-actions { display: flex; flex-wrap: wrap; gap: var(--bt-space-12); align-items: center; }
+.kind-row { border: 0; padding: 0; }
+.form-error {
+  background: var(--bt-color-bg-brand-subtle);
+  border-radius: var(--bt-radius-sm);
+  padding: var(--bt-space-12);
+}
+.form-error ul { margin: 0; padding-left: 1.2em; }
 
 .icon { display: block; flex: none; }
 

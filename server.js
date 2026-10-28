@@ -22,8 +22,10 @@ import {
   plannedPage,
 } from './lib/manage-pages.js';
 import { parseMultipart } from './lib/multipart.js';
-import { parseOfficeRoleAssignments, resolveOfficeRole } from './lib/office-access.js';
-import { officeHomePage } from './lib/office-page.js';
+import { isExecutiveRole, parseOfficeRoleAssignments, resolveOfficeRole } from './lib/office-access.js';
+import { actualPayload, forecastPayload, parseOfficeExpense } from './lib/office-expense.js';
+import { buildOfficeLedger, canViewLedgerRow } from './lib/office-ledger.js';
+import { officeExpenseFormPage, officeHomePage } from './lib/office-page.js';
 import { dashboardPage, loginPage, noAccessPage, notFoundPage } from './lib/pages.js';
 import { advanceFormPage } from './lib/reimburse-page.js';
 import {
@@ -264,6 +266,34 @@ export function createApp(options = {}) {
       if (!error || res.headersSent) return;
       res.status(404).type('text/plain').send('not found');
     });
+  });
+
+  app.use((req, res, next) => {
+    const pathName = req.path;
+    const companyRoute = pathName === '/'
+      || pathName === '/api/forecast'
+      || pathName.startsWith('/income')
+      || pathName.startsWith('/forecast')
+      || pathName.startsWith('/capital')
+      || pathName === '/settings';
+    if (!companyRoute) {
+      next();
+      return;
+    }
+    const session = readSession(req);
+    if (!session) {
+      next();
+      return;
+    }
+    if (isExecutiveRole(resolveOfficeRole(session.email, officeRoles))) {
+      next();
+      return;
+    }
+    if (pathName.startsWith('/api/')) {
+      res.status(403).json({ error: 'forbidden' });
+      return;
+    }
+    res.redirect('/office');
   });
 
   app.get('/api/forecast', async (req, res) => {
@@ -523,7 +553,8 @@ export function createApp(options = {}) {
     if (!session) return;
     if (!(await ensureStore(req, res, session))) return;
     try {
-      const expenses = await store.listActual();
+      const role = resolveOfficeRole(session.email, officeRoles);
+      const expenses = (await store.listActual()).filter((expense) => canViewLedgerRow(role, session.email, expense));
       res.type('html').send(actualListPage({
         session,
         expenses,
@@ -592,7 +623,7 @@ export function createApp(options = {}) {
     if (!(await ensureStore(req, res, session))) return;
     try {
       const expense = await store.getActual(req.params.id);
-      if (!expense) {
+      if (!expense || !canViewLedgerRow(resolveOfficeRole(session.email, officeRoles), session.email, expense)) {
         res.status(404).type('html').send(notFoundPage(langOf(req)));
         return;
       }
@@ -614,9 +645,14 @@ export function createApp(options = {}) {
       res.status(404).type('html').send(notFoundPage(langOf(req)));
       return;
     }
+    const existing = await store.getActual(req.params.id);
+    if (!existing || !canViewLedgerRow(resolveOfficeRole(session.email, officeRoles), session.email, existing)) {
+      res.status(404).type('html').send(notFoundPage(langOf(req)));
+      return;
+    }
     const parsed = parseActual(req.body || {}, session.lang);
     if (!parsed.ok) {
-      const expense = await store.getActual(req.params.id);
+      const expense = existing;
       if (!expense) {
         res.status(404).type('html').send(notFoundPage(langOf(req)));
         return;
@@ -639,7 +675,16 @@ export function createApp(options = {}) {
   });
 
   app.post('/actual/:id/delete', async (req, res) => {
-    await deleteById(req, res, (id) => store.deleteActual(id), '/actual?saved=1');
+    await deleteById(req, res, async (id) => {
+      const expense = await store.getActual(id);
+      const session = readSession(req);
+      if (!expense || !session || !canViewLedgerRow(resolveOfficeRole(session.email, officeRoles), session.email, expense)) {
+        const error = new Error('NOT_FOUND');
+        error.code = 'NOT_FOUND';
+        throw error;
+      }
+      await store.deleteActual(id);
+    }, '/actual?saved=1');
   });
 
   app.get('/actual/:id/files/:fileId', async (req, res) => {
@@ -653,6 +698,11 @@ export function createApp(options = {}) {
       return;
     }
     try {
+      const expense = await store.getActual(req.params.id);
+      if (!expense || !canViewLedgerRow(resolveOfficeRole(session.email, officeRoles), session.email, expense)) {
+        res.status(404).type('text/plain').send('not found');
+        return;
+      }
       const file = await store.readReceipt(req.params.id, req.params.fileId);
       if (!file || !RECEIPT_TYPES.has(file.contentType)) {
         res.status(404).type('text/plain').send('not found');
@@ -678,7 +728,7 @@ export function createApp(options = {}) {
     if (!(await ensureStore(req, res, session))) return;
     try {
       const expense = await store.getActual(req.params.id);
-      if (!expense) {
+      if (!expense || !canViewLedgerRow(resolveOfficeRole(session.email, officeRoles), session.email, expense)) {
         res.status(404).type('html').send(notFoundPage(langOf(req)));
         return;
       }
@@ -700,12 +750,89 @@ export function createApp(options = {}) {
     res.redirect(301, '/actual');
   });
 
-  // Sample Office Portal home. Figures are fixtures; role comes from OFFICE_ROLES.
-  app.get('/office', (req, res) => {
+  app.get('/office', async (req, res) => {
     const session = requireUser(req, res);
     if (!session) return;
+    if (!(await ensureStore(req, res, session))) return;
     const role = resolveOfficeRole(session.email, officeRoles);
-    res.type('html').send(officeHomePage({ role, csrf: session.csrf }));
+    try {
+      const loaded = await loadOfficeData(session);
+      res.type('html').send(officeHomePage({
+        role,
+        csrf: session.csrf,
+        name: session.name,
+        ledger: loaded.ledger,
+        saved: req.query.saved === '1',
+      }));
+    } catch (error) {
+      sendStoreError(res, session, error);
+    }
+  });
+
+  app.get('/office/expenses/new', async (req, res) => {
+    const session = requireUser(req, res);
+    if (!session) return;
+    if (!(await ensureStore(req, res, session))) return;
+    const role = resolveOfficeRole(session.email, officeRoles);
+    let months = [];
+    try {
+      const forecast = await store.loadForecast();
+      months = forecast?.months || [];
+    } catch {
+      months = [];
+    }
+    res.type('html').send(officeExpenseFormPage({
+      role,
+      csrf: session.csrf,
+      name: session.name,
+      months,
+    }));
+  });
+
+  app.post('/office/expenses', async (req, res) => {
+    const session = requireWrite(req, res);
+    if (!session) return;
+    const role = resolveOfficeRole(session.email, officeRoles);
+    const parsed = parseOfficeExpense(req.body || {});
+    let months = [];
+    try {
+      const forecast = await store.loadForecast();
+      months = forecast?.months || [];
+    } catch {
+      months = [];
+    }
+    if (!parsed.ok) {
+      res.status(400).type('html').send(officeExpenseFormPage({
+        role,
+        csrf: session.csrf,
+        name: session.name,
+        months,
+        errors: parsed.errors,
+        values: req.body || {},
+      }));
+      return;
+    }
+    if (parsed.value.kind === 'forecast' && !months.some((month) => month.id === parsed.value.monthId)) {
+      res.status(400).type('html').send(officeExpenseFormPage({
+        role,
+        csrf: session.csrf,
+        name: session.name,
+        months,
+        errors: [{ message: 'ไม่พบเดือนที่เลือก' }],
+        values: req.body || {},
+      }));
+      return;
+    }
+    try {
+      if (parsed.value.kind === 'actual') {
+        await store.createActual(actualPayload(parsed.value, session.email), []);
+      } else {
+        await store.createItem(forecastPayload(parsed.value, session.email));
+      }
+      res.redirect(303, '/office?saved=1');
+    } catch (error) {
+      sendStoreError(res, session, error);
+    }
   });
 
   app.use((req, res) => {
@@ -750,6 +877,21 @@ export function createApp(options = {}) {
 
   function secrets() {
     return [config.env.GOOGLE_CLIENT_SECRET, config.supabaseServiceRoleKey];
+  }
+
+  async function loadOfficeData(session) {
+    const forecast = await store.loadForecast();
+    const actuals = await store.listActual();
+    const role = resolveOfficeRole(session.email, officeRoles);
+    return {
+      ledger: buildOfficeLedger({
+        forecast,
+        actuals,
+        role,
+        email: session.email,
+        approver: { email: session.email, name: session.name },
+      }),
+    };
   }
 
   function readSession(req) {

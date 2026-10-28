@@ -12,8 +12,6 @@ import {
   resolveOfficeRole,
   visibleFinanceScope,
 } from '../lib/office-access.js';
-import { CASHFLOW } from '../lib/office-fixtures.js';
-
 test('requiredApprovers uses one director up to 10,000 and both above it', () => {
   assert.deepEqual(requiredApprovers(0), { count: 1, rule: 'one-director' });
   assert.deepEqual(requiredApprovers(1), { count: 1, rule: 'one-director' });
@@ -106,10 +104,4 @@ test('cashflow visibility is executives only; later scopes stay narrow', () => {
   assert.equal(visibleFinanceScope('employee'), 'own-claims');
   assert.equal(visibleFinanceScope('expert'), 'own-payment-status');
   assert.equal(visibleFinanceScope('guest'), 'none');
-});
-
-test('example cashflow balance is income minus actual spend', () => {
-  const [income, actual, , balance] = CASHFLOW.figures;
-  assert.equal(income.baht - actual.baht, balance.baht);
-  assert.equal(balance.note, 'รายรับ − จ่ายจริง');
 });
