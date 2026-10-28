@@ -160,9 +160,9 @@ test('example dashboard HTML has the chart, expandable table, group totals, and 
   });
   assert.match(html, /class="example-banner"/);
   // KPI tiles
-  assert.match(html, /<p class="kpi-value">1,000,000\.00<\/p>/);
-  assert.match(html, /<p class="kpi-value">370,000\.00<\/p>/);
-  assert.match(html, /<p class="kpi-value">680,000\.00<\/p>/);
+  assert.match(html, /<p class="kpi-value">฿1,000,000<\/p>/);
+  assert.match(html, /<p class="kpi-value">฿370,000<\/p>/);
+  assert.match(html, /<p class="kpi-value">฿680,000<\/p>/);
   assert.match(html, /68\.0% of opening capital left/);
   // Balance and spending charts live on separate scales, with hover text on every mark.
   assert.match(html, /data-tip="Opening capital: 1,000,000\.00 THB"/);

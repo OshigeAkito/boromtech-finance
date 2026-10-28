@@ -4,6 +4,7 @@ import express from 'express';
 import { newCsrfToken, tokensMatch } from './lib/csrf.js';
 import { emailAllowed, readConfig } from './lib/config.js';
 import { contentDisposition, validateUploads } from './lib/files.js';
+import { todayBangkok } from './lib/dates.js';
 import { createGoogleOidc } from './lib/google-oidc.js';
 import { confirmedDelete, parseActual, parseItem, parseMonth, parseSettings } from './lib/input.js';
 import { LANG_COOKIE, LANG_MAX_AGE_MS, normalizeLang, safeNext, tr } from './lib/i18n.js';
@@ -22,7 +23,8 @@ import {
   plannedPage,
 } from './lib/manage-pages.js';
 import { parseMultipart } from './lib/multipart.js';
-import { parseOfficeRoleAssignments, resolveOfficeRole } from './lib/office-access.js';
+import { canSeeCashflowSummary, parseOfficeRoleAssignments, resolveOfficeRole } from './lib/office-access.js';
+import { buildOfficeFinance } from './lib/office-finance.js';
 import { officeHomePage } from './lib/office-page.js';
 import { dashboardPage, loginPage, noAccessPage, notFoundPage } from './lib/pages.js';
 import { advanceFormPage } from './lib/reimburse-page.js';
@@ -701,11 +703,22 @@ export function createApp(options = {}) {
   });
 
   // Sample Office Portal home. Figures are fixtures; role comes from OFFICE_ROLES.
-  app.get('/office', (req, res) => {
+  // Office Portal home. The cashflow card uses the saved forecast and actual expenses when the
+  // database is set up and the role may see company figures; otherwise it shows the sample set.
+  app.get('/office', async (req, res) => {
     const session = requireUser(req, res);
     if (!session) return;
     const role = resolveOfficeRole(session.email, officeRoles);
-    res.type('html').send(officeHomePage({ role, csrf: session.csrf }));
+    let finance = null;
+    if (store.configured && canSeeCashflowSummary(role)) {
+      try {
+        const [forecast, actuals] = await Promise.all([store.loadForecast(), store.listActual()]);
+        finance = buildOfficeFinance({ forecast, actuals, today: todayBangkok(now()) });
+      } catch {
+        console.error('office finance read failed');
+      }
+    }
+    res.type('html').send(officeHomePage({ role, csrf: session.csrf, finance }));
   });
 
   app.use((req, res) => {

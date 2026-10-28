@@ -120,3 +120,59 @@ test('office home is behind the existing login and roles do not bypass the allow
     assert.equal(dash.includes('สรุปกระแสเงินสด'), false);
   });
 });
+
+test('executives see real cashflow figures from the forecast and actual expenses', async () => {
+  const store = createMemoryStore(example);
+  await store.createActual({
+    spentOn: '2026-01-15', itemName: 'ค่าโดเมนทดสอบ', category: 'domain', categoryOther: '', vendor: 'ผู้ขาย',
+    periodNone: true, periodText: '', periodFrom: null, periodTo: null, amount: '1500.50', vatMode: 'excluded',
+    foreignCurrency: '', foreignAmount: null, foreignRate: null, payer: 'ผู้ก่อการ A', paymentMethods: ['card'],
+    paymentOther: '', receiptNo: 'R-1', receiptName: 'company', receiptNameOther: '', transferRights: false,
+    transferAsset: '', note: '', createdBy: 'investor@example.com',
+  }, []);
+  let reads = 0;
+  const counted = { ...store, configured: true, loadForecast: (...args) => { reads += 1; return store.loadForecast(...args); } };
+  const env = baseEnv({ SUPABASE_URL: 'https://example.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'k' });
+  const app = createApp({ env, oidc: createFakeOidc(), store: counted, now: () => Date.parse('2026-02-10T03:00:00Z') });
+  await withServer(app, async (base) => {
+    const signed = await signIn(base, 'allowed');
+    const html = await (await fetch(`${base}/office`, { headers: { cookie: signed.jar } })).text();
+    assert.match(html, /data-example="false"/);
+    // Income and planned spend are forecasts; paid spend and the balance are actual.
+    assert.match(html, /รายรับ<\/p>\s*<p class="bt-number-large">฿50,000<\/p>/);
+    assert.match(html, /รายจ่ายยอดจริง<\/p>\s*<p class="bt-number-large">฿1,500\.50<\/p>/);
+    assert.match(html, /รายจ่ายยอดคาดการณ์<\/p>\s*<p class="bt-number-large">฿370,000<\/p>/);
+    assert.match(html, /ยอดคงเหลือ<\/p>\s*<p class="bt-number-large">฿998,499\.50<\/p>/);
+    assert.match(html, /ประมาณการ มกราคม 2569 – มีนาคม 2569 · 3 เดือน/);
+    assert.match(html, /ค่าโดเมนทดสอบ · ทดรองจ่ายโดย ผู้ก่อการ A/);
+    assert.equal(html.includes('฿1,250,000'), false);
+    // January is past on 10 Feb 2026, so the planned rows start in February.
+    assert.match(html, /<p class="bt-body-small expense-month">ก\.พ\.<\/p>/);
+    assert.match(html, /<a class="nav-item" href="\/"[^>]*>.*การเงิน/s);
+    assert.match(html, /<a class="btn btn-primary" href="\/actual\/new">/);
+    assert.match(html, /href="\/">ดูแดชบอร์ดการเงิน<\/a>/);
+    assert.equal(reads, 1);
+  });
+
+  const employeeApp = createApp({
+    env: { ...env, OFFICE_ROLES: 'investor@example.com:employee' },
+    oidc: createFakeOidc(),
+    store: counted,
+  });
+  await withServer(employeeApp, async (base) => {
+    const signed = await signIn(base, 'allowed');
+    const html = await (await fetch(`${base}/office`, { headers: { cookie: signed.jar } })).text();
+    assert.equal(html.includes('id="cashflow"'), false);
+    assert.equal(reads, 1, 'company figures are not read for an employee');
+  });
+});
+
+test('without a database the cashflow card keeps the sample figures', async () => {
+  const app = createApp({ env: baseEnv(), oidc: createFakeOidc(), store: { configured: false } });
+  await withServer(app, async (base) => {
+    const signed = await signIn(base, 'allowed');
+    const html = await (await fetch(`${base}/office`, { headers: { cookie: signed.jar } })).text();
+    assert.match(html, /data-example="true"/);
+    assert.match(html, /฿1,250,000/);
+  });
+});

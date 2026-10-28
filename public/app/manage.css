@@ -1,29 +1,126 @@
 /* Base styles for every signed-in page (dashboard included).
-   Colours follow the BoromTech CI: navy #13233B, orange #FE651E, white, soft peach #FCE9E1.
-   Orange is too light for text on white, so it is only used for accents. */
+   Tokens follow the BoromTech Office Portal design (Figma "Proposal v2"), shared with /office:
+   navy #1E2235 for text and dark surfaces, orange #E56E3F for buttons and accents, canvas #ECEEF2.
+   Orange is too light for text on white, so text and links stay navy.
+   Fonts: IBM Plex Sans Thai (OFL), served from /office-assets/fonts for signed-in pages. */
+@font-face {
+  font-family: "Bricolage Grotesque";
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("/office-assets/fonts/bricolage-700-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Bricolage Grotesque";
+  font-style: normal;
+  font-weight: 800;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("/office-assets/fonts/bricolage-800-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans Thai";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/office-assets/fonts/plex-400-thai.woff2") format("woff2");
+  unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans Thai";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/office-assets/fonts/plex-400-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans Thai";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/office-assets/fonts/plex-500-thai.woff2") format("woff2");
+  unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans Thai";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/office-assets/fonts/plex-500-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans Thai";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/office-assets/fonts/plex-600-thai.woff2") format("woff2");
+  unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans Thai";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/office-assets/fonts/plex-600-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans Thai";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/office-assets/fonts/plex-700-thai.woff2") format("woff2");
+  unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans Thai";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/office-assets/fonts/plex-700-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 :root {
   color-scheme: light;
-  --bg: #f5f6f8;
+  --bg: #eceef2;
   --surface: #ffffff;
-  --surface-2: #f7f8fa;
-  --line: #e2e5ea;
-  --line-strong: #cbd1d9;
-  --ink: #13233b;
-  --ink-2: #3c4a5f;
-  --ink-3: #5c6778;
-  --brand: #13233b;
-  --brand-ink: #0a1526;
-  --brand-soft: #e8ecf2;
-  --accent: #fe651e;
-  --peach: #fce9e1;
+  --surface-2: #f6f7f9;
+  --line: #d8dbe3;
+  --line-strong: #c3c7d6;
+  --ink: #1e2235;
+  --ink-2: #3d4257;
+  --ink-3: #5b6074;
+  --navy: #1e2235;
+  --navy-2: #2c3149;
+  --brand: #e56e3f;
+  --brand-ink: #c9592c;
+  --brand-soft: #fde7dc;
+  --accent: #e56e3f;
+  --peach: #fde7dc;
   --warn-bg: #fff4cc;
   --warn-ink: #6d4e00;
   --danger: #a12b2b;
   --danger-soft: #fdeceb;
-  --ok-bg: #e8ecf2;
-  --radius: 14px;
-  --shadow: 0 1px 2px rgba(19, 35, 59, .05), 0 6px 20px rgba(19, 35, 59, .05);
-  --font: "Leelawadee UI", Thonburi, "Noto Sans Thai", Sarabun, "Segoe UI", system-ui, sans-serif;
+  --ok-bg: #fde7dc;
+  --radius: 16px;
+  --shadow: 0 1px 2px rgba(30, 34, 53, .04), 0 6px 20px rgba(30, 34, 53, .05);
+  --font: "IBM Plex Sans Thai", "Leelawadee UI", Thonburi, "Noto Sans Thai", system-ui, sans-serif;
+  --font-latin: "Bricolage Grotesque", "IBM Plex Sans Thai", system-ui, sans-serif;
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -34,7 +131,7 @@ body {
   color: var(--ink);
   line-height: 1.55;
 }
-a { color: var(--brand); }
+a { color: var(--ink); }
 .skip {
   position: absolute;
   left: 12px;
@@ -72,7 +169,7 @@ a { color: var(--brand); }
 }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
 .brand-text { display: flex; align-items: baseline; gap: 10px; line-height: 1.1; }
-.brand-text strong { font-size: 1.3rem; font-weight: 800; letter-spacing: -.01em; color: var(--brand); }
+.brand-text strong { font-family: var(--font-latin); font-size: 1.3rem; font-weight: 800; letter-spacing: -.01em; color: var(--navy); }
 .brand-text sup { font-size: .5em; font-weight: 700; }
 .brand-text span { font-size: .74rem; font-weight: 700; color: var(--ink-3); letter-spacing: .08em; text-transform: uppercase; padding-left: 10px; border-left: 2px solid var(--accent); }
 .session { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -83,8 +180,8 @@ a { color: var(--brand); }
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: var(--brand-soft);
-  color: var(--brand-ink);
+  background: var(--brand);
+  color: var(--navy);
   font-weight: 800;
   font-size: .9rem;
 }
@@ -92,8 +189,8 @@ a { color: var(--brand); }
 .who strong { color: var(--ink-2); font-weight: 600; }
 .lang-switch { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 999px; overflow: hidden; flex: 0 0 auto; }
 .lang-switch a { padding: 4px 10px; font-size: .8rem; font-weight: 700; color: var(--ink-3); text-decoration: none; }
-.lang-switch a:hover { color: var(--brand); }
-.lang-switch a[aria-current="true"] { background: var(--brand); color: white; }
+.lang-switch a:hover { color: var(--ink); }
+.lang-switch a[aria-current="true"] { background: var(--navy); color: white; }
 .logout { margin: 0; }
 .logout button { white-space: nowrap; }
 .nav { border-top: 0; }
@@ -112,13 +209,13 @@ a { color: var(--brand); }
   padding: 10px 12px 11px;
   border-bottom: 2.5px solid transparent;
 }
-.nav a:hover { color: var(--brand); }
-.nav a[aria-current="page"] { color: var(--brand); border-bottom-color: var(--accent); }
+.nav a:hover { color: var(--ink); }
+.nav a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--accent); }
 
-.subtabs { display: inline-flex; gap: 4px; padding: 4px; margin: 0 0 16px; background: var(--brand-soft); border-radius: 999px; }
+.subtabs { display: inline-flex; gap: 4px; padding: 4px; margin: 0 0 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; }
 .subtabs a { color: var(--ink-2); font-weight: 700; text-decoration: none; padding: 6px 16px; border-radius: 999px; }
-.subtabs a:hover { color: var(--brand); }
-.subtabs a[aria-current="page"] { background: var(--surface); color: var(--brand); box-shadow: var(--shadow); }
+.subtabs a:hover { color: var(--ink); }
+.subtabs a[aria-current="page"] { background: var(--brand); color: var(--navy); }
 
 /* Page */
 .page-head { padding-top: 24px; padding-bottom: 8px; display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
@@ -180,8 +277,8 @@ h3 { margin: 16px 0 8px; font-size: 1rem; }
   font-size: .8rem;
   margin-top: 1px;
 }
-.ok { background: var(--ok-bg); color: var(--brand-ink); }
-.ok::before { content: "✓"; background: var(--brand); color: white; }
+.ok { background: var(--ok-bg); color: var(--navy); }
+.ok::before { content: "✓"; background: var(--brand); color: var(--navy); }
 .warn { background: var(--warn-bg); color: var(--warn-ink); }
 .warn::before { content: "!"; background: #c99500; color: white; }
 .error { background: var(--danger-soft); color: var(--danger); }
@@ -196,17 +293,18 @@ button.primary, a.button, button.ghost, a.ghost, button.danger {
   justify-content: center;
   gap: 6px;
   min-height: 40px;
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 8px 16px;
   font-weight: 700;
   text-decoration: none;
   line-height: 1.2;
   border: 1.5px solid transparent;
 }
-button.primary, a.button { background: var(--brand); color: white; border-color: var(--brand); }
-button.primary:hover, a.button:hover { background: var(--brand-ink); border-color: var(--brand-ink); }
-button.ghost, a.ghost { background: var(--surface); color: var(--brand); border-color: var(--line-strong); }
-button.ghost:hover, a.ghost:hover { border-color: var(--brand); }
+/* Primary buttons: navy text on orange, as in the design. */
+button.primary, a.button { background: var(--brand); color: var(--navy); border-color: var(--brand); }
+button.primary:hover, a.button:hover { background: #ec8a63; border-color: #ec8a63; }
+button.ghost, a.ghost { background: var(--surface); color: var(--ink); border-color: var(--line); }
+button.ghost:hover, a.ghost:hover { border-color: var(--ink-3); }
 button.small, a.small { min-height: 32px; padding: 4px 12px; font-size: .9rem; border-radius: 8px; }
 button.danger { background: var(--surface); color: var(--danger); border-color: #e2b5b1; }
 button.danger:hover { background: var(--danger-soft); }
@@ -267,7 +365,7 @@ legend { font-weight: 800; padding: 0 6px; }
   background: white;
   cursor: pointer;
 }
-.choices .check:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); color: var(--brand-ink); font-weight: 600; }
+.choices .check:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); color: var(--navy); font-weight: 600; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0 14px; align-items: start; }
 .grid.two { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 .grid .wide { grid-column: 1 / -1; }
@@ -328,7 +426,7 @@ tr.total th, tr.total td { font-weight: 800; background: var(--surface-2); borde
 }
 .assumption, .badge.warn-badge { color: var(--warn-ink); background: var(--warn-bg); }
 .badge { background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--line); }
-.badge.brand { background: var(--brand-soft); color: var(--brand-ink); border-color: transparent; }
+.badge.brand { background: var(--brand-soft); color: var(--navy); border-color: transparent; }
 .code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .82rem; color: var(--ink-3); }
 
 /* Forecast months */
