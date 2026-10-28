@@ -7,45 +7,38 @@ body {
   place-items: center;
   padding: 24px 16px;
   background:
-    radial-gradient(1200px 500px at 50% -10%, #dcefe6 0%, rgba(220, 239, 230, 0) 60%),
-    #f4f1ea;
-  color: #1d1b16;
+    radial-gradient(1200px 500px at 50% -10%, #fce9e1 0%, rgba(252, 233, 225, 0) 60%),
+    #f5f6f8;
+  color: #13233b;
   font-family: "Leelawadee UI", Thonburi, "Noto Sans Thai", Sarabun, "Segoe UI", system-ui, sans-serif;
   line-height: 1.6;
 }
 .card {
   width: min(440px, 100%);
-  background: #fffdf9;
-  border: 1px solid #e7e0d3;
+  background: #ffffff;
+  border: 1px solid #e2e5ea;
   border-radius: 20px;
   padding: 32px 28px 24px;
-  box-shadow: 0 1px 2px rgba(40, 30, 10, .04), 0 20px 48px rgba(40, 30, 10, .08);
+  box-shadow: 0 1px 2px rgba(19, 35, 59, .05), 0 20px 48px rgba(19, 35, 59, .09);
 }
-.brand { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; line-height: 1.15; }
-.brand > span:last-child { display: flex; flex-direction: column; }
-.brand-mark {
-  width: 38px;
-  height: 38px;
-  border-radius: 11px;
-  display: grid;
-  place-items: center;
-  background: #0b6b50;
-  color: white;
-  font-weight: 800;
-  font-size: 1.15rem;
-}
+/* Text stand-in for the BoromTech™ wordmark until the official SVG is added. */
+.brand { display: flex; align-items: baseline; gap: 10px; margin-bottom: 22px; line-height: 1.15; }
+.wordmark { font-size: 1.6rem; font-weight: 800; letter-spacing: -.01em; color: #13233b; }
+.wordmark sup { font-size: .5em; font-weight: 700; }
 .kicker {
   margin: 0;
-  letter-spacing: .06em;
+  padding-left: 10px;
+  border-left: 2px solid #fe651e;
+  letter-spacing: .08em;
   text-transform: uppercase;
-  color: #6b655a;
+  color: #5c6778;
   font-size: .74rem;
   font-weight: 700;
 }
 h1 { margin: 0 0 8px; font-size: 1.7rem; line-height: 1.25; }
 .lead, p { margin: 0 0 14px; }
-.lead { color: #4f4a41; }
-.fine { color: #6b655a; font-size: .86rem; margin: 16px 0 0; padding-top: 14px; border-top: 1px solid #ece6da; }
+.lead { color: #3c4a5f; }
+.fine { color: #5c6778; font-size: .86rem; margin: 16px 0 0; padding-top: 14px; border-top: 1px solid #e6e9ee; }
 .error {
   background: #fdeceb;
   color: #a12b2b;
@@ -59,7 +52,7 @@ h1 { margin: 0 0 8px; font-size: 1.7rem; line-height: 1.25; }
   justify-content: center;
   gap: 10px;
   text-decoration: none;
-  background: #0b6b50;
+  background: #13233b;
   color: white;
   border-radius: 12px;
   padding: 12px 16px;
@@ -67,19 +60,19 @@ h1 { margin: 0 0 8px; font-size: 1.7rem; line-height: 1.25; }
   font-weight: 800;
   margin: 18px 0 18px;
 }
-.btn:hover { background: #08523d; }
+.btn:hover { background: #0a1526; }
 .btn .g {
   width: 24px;
   height: 24px;
   border-radius: 50%;
   background: white;
-  color: #0b6b50;
+  color: #13233b;
   display: grid;
   place-items: center;
   font-size: .85rem;
   font-weight: 800;
 }
-.points { list-style: none; margin: 0; padding: 0; color: #4f4a41; font-size: .94rem; }
+.points { list-style: none; margin: 0; padding: 0; color: #3c4a5f; font-size: .94rem; }
 .points li { position: relative; padding: 3px 0 3px 26px; }
 .points li::before {
   content: "✓";
@@ -89,12 +82,12 @@ h1 { margin: 0 0 8px; font-size: 1.7rem; line-height: 1.25; }
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #e5f2ec;
-  color: #0b6b50;
+  background: #fce9e1;
+  color: #13233b;
   font-size: .72rem;
   font-weight: 800;
   display: grid;
   place-items: center;
 }
-.btn:focus-visible, a:focus-visible { outline: 3px solid #0b6b50; outline-offset: 3px; }
-a { color: #0b6b50; }
+.btn:focus-visible, a:focus-visible { outline: 3px solid #13233b; outline-offset: 3px; }
+a { color: #13233b; }
