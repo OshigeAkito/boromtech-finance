@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { loadForecast, projectMonths } from '../lib/forecast.js';
+import { loadForecast, parseFxRate, parseMoneyCents, projectMonths, validateForecast } from '../lib/forecast.js';
 import { dashboardPage } from '../lib/pages.js';
 
 const examplePath = path.join(import.meta.dirname, '..', 'data', 'forecast.example.json');
@@ -85,4 +85,65 @@ test('a decimal-string fixture loads and keeps cents in the running balance', ()
   assert.match(html, />104\.00</);
   assert.equal(html.includes('class="example-banner"'), false);
   assert.equal(html.includes(' THB'), false);
+});
+
+test('production schema shape accepts an fx rate with more than two decimal places', () => {
+  const shapePath = path.join(import.meta.dirname, 'fixtures', 'schema-shape.json');
+  const shape = JSON.parse(fs.readFileSync(shapePath, 'utf8'));
+  assert.deepEqual(validateForecast(shape), []);
+
+  const rated = structuredClone(shape);
+  rated.fx.rate = '1.23456';
+  assert.deepEqual(validateForecast(rated), []);
+  assert.equal(parseFxRate('  1.23456  '), '1.23456');
+  assert.equal(parseFxRate('1.23000'), '1.23000');
+  assert.equal(parseFxRate('30.5'), '30.5');
+  assert.equal(parseFxRate('30'), '30');
+  assert.equal(parseFxRate('-1.23456'), '-1.23456');
+  assert.equal(parseFxRate(1.23456), null);
+  assert.equal(parseFxRate(''), null);
+  assert.equal(parseFxRate('1.'), null);
+  assert.equal(parseFxRate('.5'), null);
+  assert.equal(parseFxRate('1.23456abc'), null);
+  assert.equal(parseMoneyCents('1.23456'), null);
+  assert.equal(parseMoneyCents('1.239'), null);
+  assert.equal(parseMoneyCents('1.23'), 123n);
+
+  const badAmount = structuredClone(rated);
+  badAmount.months[0].items[0].amount = '1.23456';
+  assert.deepEqual(validateForecast(badAmount), ['months[0].items[0].amount must be a decimal string']);
+
+  const badCapital = structuredClone(rated);
+  badCapital.registeredCapital = '1.234';
+  assert.ok(validateForecast(badCapital).includes('registeredCapital must be a decimal string'));
+
+  const badOpening = structuredClone(rated);
+  badOpening.openingCapital.amount = '1.234';
+  assert.ok(validateForecast(badOpening).includes('openingCapital.amount must be a decimal string'));
+
+  const badRevenue = structuredClone(rated);
+  badRevenue.months[0].revenue = '1.234';
+  assert.ok(validateForecast(badRevenue).includes('months[0].revenue must be a decimal string'));
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'forecast-fx-'));
+  const file = path.join(dir, 'forecast.json');
+  fs.writeFileSync(file, JSON.stringify(rated));
+  const loaded = loadForecast({ forecastPath: file, examplePath });
+  assert.equal(loaded.example, false);
+  assert.equal(loaded.data.fx.rate, '1.23456');
+  const months = projectMonths(loaded.data);
+  assert.equal(months[0].openingCents, 0n);
+  assert.equal(months[0].revenueCents, 0n);
+  assert.equal(months[0].spentCents, 0n);
+  assert.equal(months[0].closingCents, 0n);
+
+  const html = dashboardPage({
+    forecast: loaded.data,
+    example: false,
+    email: 'investor@example.com',
+    name: 'Example Investor',
+  });
+  assert.match(html, /แปลงดอลลาร์ที่ 1\.23456 บาท\/ดอลลาร์ จาก &lt;source&gt; อัปเดต &lt;updatedDisplay&gt;/);
+  assert.equal(html.includes('1.23 บาท'), false);
+  assert.match(html, />0\.00</);
 });

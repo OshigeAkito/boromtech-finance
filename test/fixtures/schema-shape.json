@@ -1,0 +1,44 @@
+{
+  "company": "<company>",
+  "currency": "<currency>",
+  "registeredCapital": "0.00",
+  "openingCapital": {
+    "amount": "0.00",
+    "sharePercent": 0,
+    "assumed": true,
+    "label": "<label>",
+    "timing": "<timing>"
+  },
+  "fx": {
+    "base": "<base>",
+    "quote": "<quote>",
+    "rate": "0.00",
+    "source": "<source>",
+    "updatedAt": "<updatedAt>",
+    "updatedDisplay": "<updatedDisplay>"
+  },
+  "balanceFormula": "<balanceFormula>",
+  "months": [
+    {
+      "key": "<key>",
+      "label": "<label>",
+      "labelFull": "<labelFull>",
+      "revenue": "0.00",
+      "items": [
+        {
+          "group": "<group>",
+          "groupName": "<groupName>",
+          "name": "<name>",
+          "amount": "0.00",
+          "assumed": false
+        }
+      ]
+    }
+  ],
+  "assumptions": [
+    "<text>"
+  ],
+  "notYetIncluded": [
+    "<text>"
+  ]
+}
