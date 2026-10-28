@@ -159,15 +159,18 @@ test('example dashboard HTML has the chart, expandable table, group totals, and 
     name: 'Example Investor',
   });
   assert.match(html, /class="example-banner"/);
-  assert.match(html, /<span class="swatch capital"><\/span>เงินทุนคงเหลือ/);
-  assert.match(html, /<span class="swatch revenue"><\/span>รายได้/);
-  assert.match(html, /<span class="swatch cashOut"><\/span>รายจ่าย/);
-  assert.equal(html.split('fill="#E8710A"').length - 1, 3);
-  assert.equal(html.split('fill="#1E8E3E"').length - 1, 3);
-  assert.equal(html.split('fill="#D93025"').length - 1, 3);
-  assert.match(html, /<title>ม\.ค\. · เงินทุนคงเหลือ: 870,000\.00 บาท<\/title>/);
-  assert.match(html, /<title>ก\.พ\. · รายได้: 50,000\.00 บาท<\/title>/);
-  assert.match(html, /<title>ม\.ค\. · รายจ่าย: 130,000\.00 บาท<\/title>/);
+  // KPI tiles
+  assert.match(html, /<p class="kpi-value">1,000,000\.00<\/p>/);
+  assert.match(html, /<p class="kpi-value">370,000\.00<\/p>/);
+  assert.match(html, /<p class="kpi-value">680,000\.00<\/p>/);
+  assert.match(html, /เหลือ 68\.0% ของทุนยกมา/);
+  // Balance and spending charts live on separate scales, with hover text on every mark.
+  assert.match(html, /data-tip="ทุนยกมา: 1,000,000\.00 บาท"/);
+  assert.match(html, /data-tip="ม\.ค\. · เงินทุนคงเหลือ: 870,000\.00 บาท"/);
+  assert.match(html, /data-tip="ม\.ค\. · รายจ่ายรวม 130,000\.00 บาท — /);
+  assert.equal(html.split('class="hit"').length - 1, 3 + 1 + 3);
+  assert.match(html, /<span class="swatch" style="background:#2a78d6"><\/span>ค่าเช่าสำนักงานตัวอย่าง/);
+  assert.match(html, /id="chart-tip" role="tooltip" hidden/);
   assert.match(html, />ม\.ค\.</);
   assert.match(html, />ก\.พ\.</);
   assert.match(html, />มี\.ค\.</);
@@ -193,6 +196,7 @@ test('example dashboard HTML has the chart, expandable table, group totals, and 
   assert.match(html, /รายจ่ายรวม 3 เดือน แยกตามรายการ \(บาท\)/);
   assert.equal(html.includes('รายจ่ายรวม 10 เดือน'), false);
   assert.match(html, /<th scope="col">รายการ<\/th>[\s\S]*?<th class="num" scope="col">รวม \(บาท\)<\/th>/);
+  assert.match(html, /<span class="share-pct">16\.2%<\/span>/);
   assert.match(html, /<th scope="row">ค่าเช่าสำนักงานตัวอย่าง<\/th>[\s\S]*?60,000\.00/);
   assert.match(html, /<th scope="row">ค่าเครื่องมือตัวอย่าง <span class="assumption">\(สมมติ\)<\/span><\/th>/);
   const groups = html.slice(html.indexOf('class="groups"'));
