@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createMemoryStore } from '../lib/memory-store.js';
+import { parseMultipart } from '../lib/multipart.js';
 import { createApp } from '../server.js';
 import { baseEnv, createFakeOidc, csrfFrom, signIn, withServer } from './helpers.js';
 import fs from 'node:fs';
@@ -63,6 +64,87 @@ function settingsFields(csrf, overrides = {}) {
     assumptions: example.assumptions.join('\n'),
     notYetIncluded: example.notYetIncluded.join('\n'),
     ...overrides,
+  };
+}
+
+function tagAttrs(tag) {
+  const attrs = {};
+  for (const match of tag.matchAll(/\s([^\s=/>]+)(?:="([^"]*)")?/g)) {
+    attrs[match[1].toLowerCase()] = match[2] ?? '';
+  }
+  return attrs;
+}
+
+// Builds the same multipart body a browser sends for /actual/new: every text
+// control (including blanks), one value per radio, every checkbox, and one
+// part per file input. Empty file inputs are still parts.
+function browserExpenseForm(html, file) {
+  const start = html.indexOf('<form method="post" action="/actual"');
+  const end = html.indexOf('</form>', start);
+  assert.ok(start >= 0 && end > start, 'expense form missing');
+  const form = html.slice(start, end);
+  const controls = [];
+  for (const match of form.matchAll(/<input\b[^>]*>/g)) controls.push(tagAttrs(match[0]));
+  for (const match of form.matchAll(/<textarea\b[^>]*>/g)) {
+    controls.push({ ...tagAttrs(match[0]), type: 'textarea' });
+  }
+  const byName = new Map();
+  for (const control of controls) {
+    if (!control.name) continue;
+    if (!byName.has(control.name)) byName.set(control.name, []);
+    byName.get(control.name).push(control);
+  }
+  const text = {
+    spentOn: '2026-04-15',
+    amount: '100.00',
+    itemName: 'Synthetic office supply',
+    vendor: 'Example Vendor',
+    receiptNo: 'INV-TEST-1',
+    category: 'software',
+    payer: 'Example Payer',
+    transferRights: 'no',
+    paymentOther: 'Example method',
+  };
+  const boundary = '----bt-browser-form';
+  const chunks = [];
+  const push = (value) => chunks.push(Buffer.from(value, 'utf8'));
+  let parts = 0;
+  for (const [name, group] of byName) {
+    const type = (group[0].type || 'text').toLowerCase();
+    if (type === 'file') {
+      parts += 1;
+      if (name === file.field) {
+        push(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"; filename="${file.filename}"\r\nContent-Type: ${file.type}\r\n\r\n`);
+        chunks.push(file.bytes);
+        push('\r\n');
+      } else {
+        push(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"; filename=""\r\nContent-Type: application/octet-stream\r\n\r\n\r\n`);
+      }
+      continue;
+    }
+    if (type === 'submit' || type === 'button' || type === 'image') continue;
+    if (type === 'radio') {
+      const picked = group.find((item) => item.value === text[name])
+        || group.find((item) => Object.hasOwn(item, 'checked'));
+      if (!picked) continue;
+      parts += 1;
+      push(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${picked.value}\r\n`);
+      continue;
+    }
+    if (type === 'checkbox') {
+      parts += 1;
+      push(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${group[0].value || 'on'}\r\n`);
+      continue;
+    }
+    parts += 1;
+    const value = text[name] ?? group[0].value ?? '';
+    push(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`);
+  }
+  push(`--${boundary}--\r\n`);
+  return {
+    body: Buffer.concat(chunks),
+    contentType: `multipart/form-data; boundary=${boundary}`,
+    parts,
   };
 }
 
@@ -460,6 +542,55 @@ test('actual expenses, receipts, and the reimbursement form stay on this server'
     assert.equal(/<script(?![^>]*\bsrc=)/i.test(printed), false);
     assert.equal(printed.includes(secret), false);
     assert.equal(printed.includes('supabase'), false);
+  });
+});
+
+test('one receipt on the full expense form saves a PDF and a PNG', async () => {
+  const pdf = Buffer.from('%PDF-1.7\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n');
+  const files = [
+    { field: 'receiptFile', filename: 'receipt.pdf', type: 'application/pdf', bytes: pdf },
+    { field: 'receiptFile', filename: 'slip.png', type: 'image/png', bytes: PNG },
+  ];
+  const app = appWith();
+  await withServer(app, async (base) => {
+    const result = await signIn(base, 'allowed');
+    const page = await (await fetch(`${base}/actual/new`, { headers: { cookie: result.jar } })).text();
+    for (const file of files) {
+      const form = browserExpenseForm(page, file);
+      // The live form is larger than the parser's old 24-part cap. Keep this
+      // above that cap so a smaller hand-built body cannot hide the bug.
+      assert.ok(form.parts > 24, `expected the full form, got ${form.parts} parts`);
+      let parsed;
+      try {
+        parsed = parseMultipart(form.body, form.contentType);
+      } catch (error) {
+        assert.fail(`parse failed: ${error.code} parts=${form.parts}`);
+      }
+      assert.equal(parsed.files.length, 1);
+      assert.equal(parsed.files[0].field, 'receiptFile');
+      assert.equal(Buffer.compare(parsed.files[0].bytes, file.bytes), 0);
+      const created = await fetch(`${base}/actual`, {
+        method: 'POST',
+        redirect: 'manual',
+        headers: { cookie: result.jar, 'content-type': form.contentType },
+        body: form.body,
+      });
+      const text = await created.text();
+      assert.equal(created.status, 303, text);
+      const detail = await (await fetch(new URL(created.headers.get('location'), base), {
+        headers: { cookie: result.jar },
+      })).text();
+      assert.match(detail, new RegExp(file.filename.replace('.', '\\.')));
+      const filePath = detail.match(/href="(\/actual\/[^"]+\/files\/[^"]+)"/)[1];
+      const saved = await fetch(`${base}${filePath}`, { headers: { cookie: result.jar } });
+      assert.equal(saved.status, 200);
+      assert.equal(saved.headers.get('content-type'), file.type);
+      assert.equal(Buffer.compare(Buffer.from(await saved.arrayBuffer()), file.bytes), 0);
+    }
+    const list = await (await fetch(`${base}/actual`, { headers: { cookie: result.jar } })).text();
+    assert.match(list, /EXP-0001/);
+    assert.match(list, /EXP-0002/);
+    assert.equal(list.includes('No actual expenses yet'), false);
   });
 });
 
