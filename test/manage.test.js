@@ -78,7 +78,8 @@ function tagAttrs(tag) {
 // Builds the same multipart body a browser sends for /actual/new: every text
 // control (including blanks), one value per radio, every checkbox, and one
 // part per file input. Empty file inputs are still parts.
-function browserExpenseForm(html, file) {
+// `fields` overrides text values. A checkbox set to false is left unticked.
+function browserExpenseForm(html, file, fields = {}) {
   const start = html.indexOf('<form method="post" action="/actual"');
   const end = html.indexOf('</form>', start);
   assert.ok(start >= 0 && end > start, 'expense form missing');
@@ -104,6 +105,7 @@ function browserExpenseForm(html, file) {
     payer: 'Example Payer',
     transferRights: 'no',
     paymentOther: 'Example method',
+    ...fields,
   };
   const boundary = '----bt-browser-form';
   const chunks = [];
@@ -132,6 +134,9 @@ function browserExpenseForm(html, file) {
       continue;
     }
     if (type === 'checkbox') {
+      if (Object.hasOwn(fields, name) && fields[name] !== 'on' && fields[name] !== true && fields[name] !== '1') {
+        continue;
+      }
       parts += 1;
       push(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${group[0].value || 'on'}\r\n`);
       continue;
@@ -591,6 +596,102 @@ test('one receipt on the full expense form saves a PDF and a PNG', async () => {
     assert.match(list, /EXP-0001/);
     assert.match(list, /EXP-0002/);
     assert.equal(list.includes('No actual expenses yet'), false);
+  });
+});
+
+const PDF = Buffer.from('%PDF-1.7\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n');
+
+function receiptFile() {
+  return { field: 'receiptFile', filename: 'receipt.pdf', type: 'application/pdf', bytes: PDF };
+}
+
+async function postExpense(base, jar, page, fields) {
+  const form = browserExpenseForm(page, receiptFile(), fields);
+  assert.ok(form.parts > 24, `expected the full form, got ${form.parts} parts`);
+  const created = await fetch(`${base}/actual`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { cookie: jar, 'content-type': form.contentType },
+    body: form.body,
+  });
+  return { created, form };
+}
+
+test('a service period with only from and to saves one PDF', async () => {
+  const app = appWith();
+  await withServer(app, async (base) => {
+    const result = await signIn(base, 'allowed');
+    const page = await (await fetch(`${base}/actual/new`, { headers: { cookie: result.jar } })).text();
+    const backwards = await postExpense(base, result.jar, page, {
+      periodNone: false,
+      periodText: '',
+      periodFrom: '2026-11-23',
+      periodTo: '2026-10-23',
+      note: 'First line\nSecond line',
+    });
+    const rejected = await backwards.created.text();
+    assert.equal(backwards.created.status, 400, rejected);
+    assert.match(rejected, /The end date must be on or after the start date/);
+    assert.match(rejected, /The attached file was not kept\. Attach it again before saving\./);
+    assert.match(rejected, /name="periodFrom"[^>]*value="2026-11-23"/);
+    assert.match(rejected, /name="periodTo"[^>]*value="2026-10-23"/);
+    assert.equal(/name="receiptFile"[^>]*value=/.test(rejected), false);
+
+    const saved = await postExpense(base, result.jar, page, {
+      periodNone: false,
+      periodText: '',
+      periodFrom: '2026-10-23',
+      periodTo: '2026-11-23',
+      note: 'First line\nSecond line',
+    });
+    const body = await saved.created.text();
+    assert.equal(saved.created.status, 303, body);
+    const detail = await (await fetch(new URL(saved.created.headers.get('location'), base), {
+      headers: { cookie: result.jar },
+    })).text();
+    assert.match(detail, /name="periodFrom"[^>]*value="2026-10-23"/);
+    assert.match(detail, /name="periodTo"[^>]*value="2026-11-23"/);
+    assert.match(detail, /name="periodText"[^>]*value="1 month"/);
+    assert.equal(/name="periodNone"[^>]*\bchecked\b/.test(detail), false);
+    assert.match(detail, /First line\nSecond line/);
+    const filePath = detail.match(/href="(\/actual\/[^"]+\/files\/[^"]+)"/)[1];
+    const file = await fetch(`${base}${filePath}`, { headers: { cookie: result.jar } });
+    assert.equal(file.status, 200);
+    assert.equal(file.headers.get('content-type'), 'application/pdf');
+    assert.equal(Buffer.compare(Buffer.from(await file.arrayBuffer()), PDF), 0);
+    const expenseId = new URL(saved.created.headers.get('location'), base).pathname.split('/')[2];
+    const printed = await (await fetch(`${base}/actual/${expenseId}/form`, { headers: { cookie: result.jar } })).text();
+    assert.match(printed, /1 month/);
+    assert.match(printed, /23 ตุลาคม 2569/);
+    assert.match(printed, /23 พฤศจิกายน 2569/);
+  });
+});
+
+test('ticking No service period saves one PDF with no dates', async () => {
+  const app = appWith();
+  await withServer(app, async (base) => {
+    const result = await signIn(base, 'allowed');
+    const page = await (await fetch(`${base}/actual/new`, { headers: { cookie: result.jar } })).text();
+    const saved = await postExpense(base, result.jar, page, {
+      periodNone: 'on',
+      periodText: '',
+      periodFrom: '',
+      periodTo: '',
+    });
+    const body = await saved.created.text();
+    assert.equal(saved.created.status, 303, body);
+    const detail = await (await fetch(new URL(saved.created.headers.get('location'), base), {
+      headers: { cookie: result.jar },
+    })).text();
+    assert.match(detail, /name="periodNone"[^>]*\bchecked\b/);
+    assert.match(detail, /name="periodFrom"[^>]*value=""/);
+    assert.match(detail, /name="periodTo"[^>]*value=""/);
+    assert.match(detail, /name="periodText"[^>]*value=""/);
+    const filePath = detail.match(/href="(\/actual\/[^"]+\/files\/[^"]+)"/)[1];
+    const file = await fetch(`${base}${filePath}`, { headers: { cookie: result.jar } });
+    assert.equal(file.status, 200);
+    assert.equal(file.headers.get('content-type'), 'application/pdf');
+    assert.equal(Buffer.compare(Buffer.from(await file.arrayBuffer()), PDF), 0);
   });
 });
 

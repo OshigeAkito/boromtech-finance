@@ -568,6 +568,15 @@ export function createApp(options = {}) {
       ...files.errors.map((message) => ({ message })),
     ];
     if (errors.length) {
+      // The browser cannot refill a file input, so a failed save drops the receipt.
+      if (uploaded.files.length > 0) {
+        errors.push({
+          message: tr(session.lang)(
+            'The attached file was not kept. Attach it again before saving.',
+            'ไฟล์แนบไม่ได้ถูกเก็บไว้ กรุณาแนบใหม่อีกครั้งก่อนบันทึก',
+          ),
+        });
+      }
       res.status(400).type('html').send(actualFormPage({
         session,
         csrf: session.csrf,
