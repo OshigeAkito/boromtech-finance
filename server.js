@@ -6,19 +6,20 @@ import { emailAllowed, readConfig } from './lib/config.js';
 import { contentDisposition, validateUploads } from './lib/files.js';
 import { createGoogleOidc } from './lib/google-oidc.js';
 import { confirmedDelete, parseActual, parseItem, parseMonth, parseSettings } from './lib/input.js';
+import { LANG_COOKIE, LANG_MAX_AGE_MS, normalizeLang, safeNext, tr } from './lib/i18n.js';
 import { isUuid } from './lib/ids.js';
 import {
   actualDetailPage,
   actualFormPage,
   actualListPage,
+  capitalPage,
   emptyDashboardPage,
-  forecastPage,
+  incomePage,
   itemFormPage,
   logoutConfirmPage,
   messagePage,
   notConfiguredPage,
-  reimburseSelectPage,
-  settingsPage,
+  plannedPage,
 } from './lib/manage-pages.js';
 import { parseMultipart } from './lib/multipart.js';
 import { dashboardPage, loginPage, noAccessPage, notFoundPage } from './lib/pages.js';
@@ -106,7 +107,20 @@ export function createApp(options = {}) {
       return;
     }
     const code = req.query.error === 'state' || req.query.error === 'auth' ? req.query.error : '';
-    res.type('html').send(loginPage({ error: code }));
+    res.type('html').send(loginPage({ error: code, lang: langOf(req) }));
+  });
+
+  // EN | TH switch. Works signed in or out; only same-site paths are followed.
+  app.get('/lang/:code', (req, res) => {
+    const lang = normalizeLang(req.params.code);
+    res.cookie(LANG_COOKIE, lang, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: config.nodeEnv === 'production',
+      maxAge: LANG_MAX_AGE_MS,
+      path: '/',
+    });
+    res.redirect(303, safeNext(req.query.next));
   });
 
   app.get('/auth/google', async (req, res, next) => {
@@ -163,7 +177,7 @@ export function createApp(options = {}) {
       const verified = Boolean(claims) && claims.email_verified === true;
       if (!verified || !emailAllowed(config.allowlist, email)) {
         const shown = claims && typeof claims.email === 'string' ? claims.email : '';
-        res.status(403).type('html').send(noAccessPage({ email: shown }));
+        res.status(403).type('html').send(noAccessPage({ email: shown, lang: langOf(req) }));
         return;
       }
       const name = claims && typeof claims.name === 'string' ? claims.name.slice(0, 200) : '';
@@ -277,15 +291,17 @@ export function createApp(options = {}) {
       email: session.email,
       name: session.name,
       csrf: session.csrf,
+      lang: session.lang,
+      path: session.path,
     }));
   });
 
-  app.get('/settings', async (req, res) => {
+  app.get('/capital', async (req, res) => {
     const session = requireUser(req, res);
     if (!session) return;
     const forecast = await readForecast(req, res, session);
     if (forecast === undefined) return;
-    res.type('html').send(settingsPage({
+    res.type('html').send(capitalPage({
       session,
       forecast,
       csrf: session.csrf,
@@ -293,14 +309,19 @@ export function createApp(options = {}) {
     }));
   });
 
-  app.post('/settings', async (req, res) => {
+  // Settings now live on the Capital page; keep old links and bookmarks working.
+  app.get('/settings', (req, res) => {
+    res.redirect(301, '/capital');
+  });
+
+  app.post(['/capital', '/settings'], async (req, res) => {
     const session = requireWrite(req, res);
     if (!session) return;
-    const parsed = parseSettings(req.body || {});
+    const parsed = parseSettings(req.body || {}, session.lang);
     if (!parsed.ok) {
       const forecast = await readForecast(req, res, session);
       if (forecast === undefined) return;
-      res.status(400).type('html').send(settingsPage({
+      res.status(400).type('html').send(capitalPage({
         session,
         forecast,
         csrf: session.csrf,
@@ -311,10 +332,23 @@ export function createApp(options = {}) {
     }
     try {
       await store.saveSettings(parsed.value);
-      res.redirect(303, '/settings?saved=1');
+      res.redirect(303, '/capital?saved=1');
     } catch (error) {
       sendStoreError(res, session, error);
     }
+  });
+
+  app.get('/income', async (req, res) => {
+    const session = requireUser(req, res);
+    if (!session) return;
+    const forecast = await readForecast(req, res, session);
+    if (forecast === undefined) return;
+    res.type('html').send(incomePage({
+      session,
+      forecast,
+      csrf: session.csrf,
+      saved: req.query.saved === '1',
+    }));
   });
 
   app.get('/forecast', async (req, res) => {
@@ -322,7 +356,7 @@ export function createApp(options = {}) {
     if (!session) return;
     const forecast = await readForecast(req, res, session);
     if (forecast === undefined) return;
-    res.type('html').send(forecastPage({
+    res.type('html').send(plannedPage({
       session,
       forecast,
       csrf: session.csrf,
@@ -333,11 +367,11 @@ export function createApp(options = {}) {
   app.post('/forecast/months', async (req, res) => {
     const session = requireWrite(req, res);
     if (!session) return;
-    const parsed = parseMonth(req.body || {});
+    const parsed = parseMonth(req.body || {}, session.lang);
     if (!parsed.ok) {
       const forecast = await readForecast(req, res, session);
       if (forecast === undefined) return;
-      res.status(400).type('html').send(forecastPage({
+      res.status(400).type('html').send(incomePage({
         session,
         forecast,
         csrf: session.csrf,
@@ -347,7 +381,7 @@ export function createApp(options = {}) {
     }
     try {
       await store.createMonth(parsed.value);
-      res.redirect(303, '/forecast?saved=1');
+      res.redirect(303, '/income?saved=1');
     } catch (error) {
       sendStoreError(res, session, error);
     }
@@ -357,14 +391,14 @@ export function createApp(options = {}) {
     const session = requireWrite(req, res);
     if (!session) return;
     if (!isUuid(req.params.id)) {
-      res.status(404).type('html').send(notFoundPage());
+      res.status(404).type('html').send(notFoundPage(langOf(req)));
       return;
     }
-    const parsed = parseMonth(req.body || {});
+    const parsed = parseMonth(req.body || {}, session.lang);
     if (!parsed.ok) {
       const forecast = await readForecast(req, res, session);
       if (forecast === undefined) return;
-      res.status(400).type('html').send(forecastPage({
+      res.status(400).type('html').send(incomePage({
         session,
         forecast,
         csrf: session.csrf,
@@ -374,14 +408,14 @@ export function createApp(options = {}) {
     }
     try {
       await store.updateMonth(req.params.id, parsed.value);
-      res.redirect(303, '/forecast?saved=1');
+      res.redirect(303, '/income?saved=1');
     } catch (error) {
       sendStoreError(res, session, error);
     }
   });
 
   app.post('/forecast/months/:id/delete', async (req, res) => {
-    await deleteById(req, res, (id) => store.deleteMonth(id), '/forecast?saved=1');
+    await deleteById(req, res, (id) => store.deleteMonth(id), '/income?saved=1');
   });
 
   app.get('/forecast/items/new', async (req, res) => {
@@ -396,7 +430,7 @@ export function createApp(options = {}) {
   app.post('/forecast/items', async (req, res) => {
     const session = requireWrite(req, res);
     if (!session) return;
-    const parsed = parseItem(req.body || {});
+    const parsed = parseItem(req.body || {}, session.lang);
     if (!parsed.ok) {
       const forecast = await readForecast(req, res, session);
       if (forecast === undefined) return;
@@ -424,7 +458,7 @@ export function createApp(options = {}) {
     if (forecast === undefined) return;
     const item = findItem(forecast, req.params.id);
     if (!item) {
-      res.status(404).type('html').send(notFoundPage());
+      res.status(404).type('html').send(notFoundPage(langOf(req)));
       return;
     }
     res.type('html').send(itemFormPage({ session, forecast, csrf: session.csrf, item }));
@@ -434,15 +468,15 @@ export function createApp(options = {}) {
     const session = requireWrite(req, res);
     if (!session) return;
     if (!isUuid(req.params.id)) {
-      res.status(404).type('html').send(notFoundPage());
+      res.status(404).type('html').send(notFoundPage(langOf(req)));
       return;
     }
-    const parsed = parseItem(req.body || {});
+    const parsed = parseItem(req.body || {}, session.lang);
     const forecast = await readForecast(req, res, session);
     if (forecast === undefined) return;
     const item = findItem(forecast, req.params.id);
     if (!item) {
-      res.status(404).type('html').send(notFoundPage());
+      res.status(404).type('html').send(notFoundPage(langOf(req)));
       return;
     }
     if (!parsed.ok) {
@@ -509,8 +543,8 @@ export function createApp(options = {}) {
       rejectCsrf(res, session);
       return;
     }
-    const parsed = parseActual(uploaded.fields);
-    const files = validateUploads(uploaded.files, { required: true });
+    const parsed = parseActual(uploaded.fields, session.lang);
+    const files = validateUploads(uploaded.files, { required: true, lang: session.lang });
     const errors = [
       ...(parsed.ok ? [] : parsed.errors),
       ...files.errors.map((message) => ({ message })),
@@ -536,14 +570,14 @@ export function createApp(options = {}) {
     const session = requireUser(req, res);
     if (!session) return;
     if (!isUuid(req.params.id)) {
-      res.status(404).type('html').send(notFoundPage());
+      res.status(404).type('html').send(notFoundPage(langOf(req)));
       return;
     }
     if (!(await ensureStore(req, res, session))) return;
     try {
       const expense = await store.getActual(req.params.id);
       if (!expense) {
-        res.status(404).type('html').send(notFoundPage());
+        res.status(404).type('html').send(notFoundPage(langOf(req)));
         return;
       }
       res.type('html').send(actualDetailPage({
@@ -561,14 +595,14 @@ export function createApp(options = {}) {
     const session = requireWrite(req, res);
     if (!session) return;
     if (!isUuid(req.params.id)) {
-      res.status(404).type('html').send(notFoundPage());
+      res.status(404).type('html').send(notFoundPage(langOf(req)));
       return;
     }
-    const parsed = parseActual(req.body || {});
+    const parsed = parseActual(req.body || {}, session.lang);
     if (!parsed.ok) {
       const expense = await store.getActual(req.params.id);
       if (!expense) {
-        res.status(404).type('html').send(notFoundPage());
+        res.status(404).type('html').send(notFoundPage(langOf(req)));
         return;
       }
       res.status(400).type('html').send(actualDetailPage({
@@ -622,14 +656,14 @@ export function createApp(options = {}) {
     const session = requireUser(req, res);
     if (!session) return;
     if (!isUuid(req.params.id)) {
-      res.status(404).type('html').send(notFoundPage());
+      res.status(404).type('html').send(notFoundPage(langOf(req)));
       return;
     }
     if (!(await ensureStore(req, res, session))) return;
     try {
       const expense = await store.getActual(req.params.id);
       if (!expense) {
-        res.status(404).type('html').send(notFoundPage());
+        res.status(404).type('html').send(notFoundPage(langOf(req)));
         return;
       }
       let company = '';
@@ -645,16 +679,9 @@ export function createApp(options = {}) {
     }
   });
 
-  app.get('/reimburse', async (req, res) => {
-    const session = requireUser(req, res);
-    if (!session) return;
-    if (!(await ensureStore(req, res, session))) return;
-    try {
-      const expenses = await store.listActual();
-      res.type('html').send(reimburseSelectPage({ session, expenses, csrf: session.csrf }));
-    } catch (error) {
-      sendStoreError(res, session, error);
-    }
+  // Reimbursement forms are printed from each actual expense now.
+  app.get('/reimburse', (req, res) => {
+    res.redirect(301, '/actual');
   });
 
   app.use((req, res) => {
@@ -675,7 +702,7 @@ export function createApp(options = {}) {
       res.redirect('/login');
       return;
     }
-    res.status(404).type('html').send(notFoundPage());
+    res.status(404).type('html').send(notFoundPage(langOf(req)));
   });
 
   app.use((err, req, res, next) => {
@@ -692,7 +719,7 @@ export function createApp(options = {}) {
       });
       return;
     }
-    res.status(status).type('html').send('<!doctype html><html lang="th"><meta charset="utf-8"><title>Error</title><p>เกิดข้อผิดพลาดภายในระบบ</p></html>');
+    res.status(status).type('html').send('<!doctype html><html lang="en"><meta charset="utf-8"><title>Error</title><p>Something went wrong on the server.</p></html>');
   });
 
   return app;
@@ -708,9 +735,14 @@ export function createApp(options = {}) {
     return payload;
   }
 
+  function langOf(req) {
+    return normalizeLang(readCookie(req, LANG_COOKIE));
+  }
+
+  // Signed-in pages get the visitor's language and the current path (for the EN | TH switch).
   function requireUser(req, res) {
     const session = readSession(req);
-    if (session) return session;
+    if (session) return { ...session, lang: langOf(req), path: req.originalUrl };
     if (req.path.startsWith('/api/')) {
       res.status(401).json({ error: 'unauthorized' });
       return null;
@@ -740,10 +772,11 @@ export function createApp(options = {}) {
   }
 
   function rejectCsrf(res, session) {
+    const L = tr(session.lang);
     res.status(403).type('html').send(messagePage({
       session,
-      title: 'คำขอถูกปฏิเสธ',
-      message: 'โทเคนยืนยันไม่ถูกต้อง กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง',
+      title: L('Request rejected', 'คำขอถูกปฏิเสธ'),
+      message: L('The form token is not valid. Reload the page and try again.', 'โทเคนยืนยันไม่ถูกต้อง กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง'),
     }));
   }
 
@@ -768,8 +801,8 @@ export function createApp(options = {}) {
       } else {
         res.status(500).type('html').send(messagePage({
           session,
-          title: 'อ่านข้อมูลไม่สำเร็จ',
-          message: 'ระบบอ่านข้อมูลไม่สำเร็จ กรุณาลองใหม่',
+          title: tr(session.lang)('Could not read data', 'อ่านข้อมูลไม่สำเร็จ'),
+          message: tr(session.lang)('The data could not be read. Please try again.', 'ระบบอ่านข้อมูลไม่สำเร็จ กรุณาลองใหม่'),
         }));
       }
       return undefined;
@@ -777,23 +810,24 @@ export function createApp(options = {}) {
   }
 
   function sendStoreError(res, session, error) {
+    const L = tr(session.lang);
     if (error && error.code === 'NOT_FOUND') {
-      res.status(404).type('html').send(notFoundPage());
+      res.status(404).type('html').send(notFoundPage(session.lang));
       return;
     }
     if (error && error.code === 'CONFLICT') {
       res.status(409).type('html').send(messagePage({
         session,
-        title: 'ข้อมูลซ้ำ',
-        message: 'มีรหัสนี้อยู่แล้ว',
+        title: L('Already exists', 'ข้อมูลซ้ำ'),
+        message: L('That month or code already exists.', 'มีเดือนหรือรหัสนี้อยู่แล้ว'),
       }));
       return;
     }
     console.error('store failed');
     res.status(500).type('html').send(messagePage({
       session,
-      title: 'บันทึกไม่สำเร็จ',
-      message: 'ระบบอ่านหรือบันทึกข้อมูลไม่สำเร็จ กรุณาลองใหม่',
+      title: L('Not saved', 'บันทึกไม่สำเร็จ'),
+      message: L('The data could not be read or saved. Please try again.', 'ระบบอ่านหรือบันทึกข้อมูลไม่สำเร็จ กรุณาลองใหม่'),
     }));
   }
 
@@ -801,14 +835,14 @@ export function createApp(options = {}) {
     const session = requireWrite(req, res);
     if (!session) return;
     if (!isUuid(req.params.id)) {
-      res.status(404).type('html').send(notFoundPage());
+      res.status(404).type('html').send(notFoundPage(langOf(req)));
       return;
     }
     if (!confirmedDelete(req.body || {})) {
       res.status(400).type('html').send(messagePage({
         session,
-        title: 'ยังไม่ได้ยืนยัน',
-        message: 'ติ๊กยืนยันการลบก่อนจึงจะลบได้',
+        title: tr(session.lang)('Not confirmed', 'ยังไม่ได้ยืนยัน'),
+        message: tr(session.lang)('Tick the confirmation box before deleting.', 'ติ๊กยืนยันการลบก่อนจึงจะลบได้'),
       }));
       return;
     }
@@ -821,12 +855,13 @@ export function createApp(options = {}) {
   }
 
   async function readMultipart(req, res, session) {
+    const L = tr(session.lang);
     const type = req.get('content-type') || '';
     if (!type.toLowerCase().startsWith('multipart/form-data')) {
       res.status(415).type('html').send(actualFormPage({
         session,
         csrf: session.csrf,
-        errors: [{ message: 'ต้องส่งแบบฟอร์มแบบไฟล์แนบ' }],
+        errors: [{ message: L('The form must be sent with attachments', 'ต้องส่งแบบฟอร์มแบบไฟล์แนบ') }],
       }));
       return null;
     }
@@ -839,7 +874,7 @@ export function createApp(options = {}) {
           res.status(413).type('html').send(actualFormPage({
             session,
             csrf: session.csrf,
-            errors: [{ message: 'ไฟล์แนบใหญ่เกินไป' }],
+            errors: [{ message: L('The attachments are too large', 'ไฟล์แนบใหญ่เกินไป') }],
           }));
           return null;
         }
@@ -849,7 +884,7 @@ export function createApp(options = {}) {
       res.status(400).type('html').send(actualFormPage({
         session,
         csrf: session.csrf,
-        errors: [{ message: 'อ่านไฟล์แนบไม่สำเร็จ' }],
+        errors: [{ message: L('The attachments could not be read', 'อ่านไฟล์แนบไม่สำเร็จ') }],
       }));
       return null;
     }
@@ -857,8 +892,8 @@ export function createApp(options = {}) {
       return parseMultipart(Buffer.concat(chunks), type);
     } catch (error) {
       const message = error && error.code === 'FILE_TOO_LARGE'
-        ? 'แต่ละไฟล์ต้องไม่เกิน 5 MB'
-        : 'อ่านไฟล์แนบไม่สำเร็จ';
+        ? L('Each file must be 5 MB or less', 'แต่ละไฟล์ต้องไม่เกิน 5 MB')
+        : L('The attachments could not be read', 'อ่านไฟล์แนบไม่สำเร็จ');
       res.status(400).type('html').send(actualFormPage({
         session,
         csrf: session.csrf,

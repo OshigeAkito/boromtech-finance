@@ -34,10 +34,10 @@ test('unauthenticated pages redirect and data endpoints return 401', async () =>
     const login = await fetch(`${base}/login`);
     assert.equal(login.status, 200);
     const html = await login.text();
-    assert.match(html, /เข้าสู่ระบบด้วย Google/);
+    assert.match(html, /Sign in with Google/);
     assert.equal(html.includes(example.company), false);
     assert.equal(html.includes('1,000,000.00'), false);
-    assert.equal(html.includes('เงินทุนสิ้นเดือน'), false);
+    assert.equal(html.includes('Month-end balance'), false);
     assert.equal(html.includes('/dashboard-assets/dashboard.js'), false);
 
     const dash = await fetch(`${base}/dashboard`, { redirect: 'manual' });
@@ -63,14 +63,14 @@ test('unauthenticated pages redirect and data endpoints return 401', async () =>
   });
 });
 
-test('a disallowed or unverified email gets a Thai no-access page and no session', async () => {
+test('a disallowed or unverified email gets a no-access page and no session', async () => {
   const { app } = appWith();
   await withServer(app, async (base) => {
     for (const code of ['denied', 'unverified', 'stringflag', 'noemail']) {
       const result = await signIn(base, code);
       assert.equal(result.callback.status, 403);
       const html = await result.callback.text();
-      assert.match(html, /ยังไม่ได้รับสิทธิ์/);
+      assert.match(html, /does not have access/);
       assert.equal(result.jar.includes('bt_session='), false);
       const api = await fetch(`${base}/api/forecast`, { headers: { cookie: result.jar } });
       assert.equal(api.status, 401);
@@ -105,7 +105,7 @@ test('an allowed email can read the forecast, then log out', async () => {
     assert.equal(html.includes(example.assumptions[0]), true);
     assert.equal(html.includes(example.notYetIncluded[0]), true);
     assert.equal(html.includes('investor@example.com'), true);
-    assert.match(html, /เงินทุนสิ้นเดือน/);
+    assert.match(html, /Month-end balance/);
     assert.match(html, /<script src="\/dashboard-assets\/dashboard\.js" defer><\/script>/);
     assert.equal(/<script(?![^>]*\bsrc=)/i.test(html), false);
     const csp = page.headers.get('content-security-policy');
@@ -189,9 +189,9 @@ test('a signed-in user can open a forecast whose fx rate has five decimal places
     const home = await fetch(`${base}/`, { headers: { cookie: result.jar } });
     assert.equal(home.status, 200);
     const html = await home.text();
-    assert.equal(html.includes('ไม่สามารถอ่านไฟล์ประมาณการได้'), false);
-    assert.match(html, /แปลงดอลลาร์ที่ 1\.23456 บาท\/ดอลลาร์/);
-    assert.equal(html.includes('1.23 บาท'), false);
+    assert.equal(html.includes('could not be read'), false);
+    assert.match(html, /1 USD = 1\.23456 THB/);
+    assert.equal(html.includes('1.23 THB'), false);
     const api = await fetch(`${base}/api/forecast`, { headers: { cookie: result.jar } });
     assert.equal(api.status, 200);
     const body = await api.json();

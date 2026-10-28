@@ -91,3 +91,6 @@ h1 { margin: 0 0 8px; font-size: 1.7rem; line-height: 1.25; }
 }
 .btn:focus-visible, a:focus-visible { outline: 3px solid #13233b; outline-offset: 3px; }
 a { color: #13233b; }
+.lang-switch { display: inline-flex; border: 1px solid #cbd1d9; border-radius: 999px; overflow: hidden; margin-left: auto; align-self: center; }
+.lang-switch a { padding: 3px 10px; font-size: .78rem; font-weight: 700; color: #5c6778; text-decoration: none; }
+.lang-switch a[aria-current="true"] { background: #13233b; color: white; }

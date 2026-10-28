@@ -76,15 +76,17 @@ test('a decimal-string fixture loads and keeps cents in the running balance', ()
     email: 'investor@example.com',
     name: 'Example Investor',
   });
-  assert.match(html, /รายจ่าย: รายการบี <span class="assumption">\(สมมติ\)<\/span>/);
-  assert.equal(html.includes('รายจ่าย: รายการเอ <span class="assumption">'), false);
-  assert.match(html, /ทุนเริ่มต้น \(ยอดยกมา\) <span class="assumption">\(สมมติ\)<\/span>/);
+  assert.match(html, /<span class="label">รายการบี <span class="assumption">assumed<\/span>/);
+  assert.equal(html.includes('<span class="label">รายการเอ <span class="assumption">'), false);
+  assert.match(html, /Opening capital <span class="assumption">assumed<\/span>/);
   assert.match(html, /<th scope="row">กลุ่มเอ<\/th>/);
   assert.match(html, /<th scope="row">รายการซี<\/th>/);
   assert.match(html, />105\.50</);
   assert.match(html, />104\.00</);
   assert.equal(html.includes('class="example-banner"'), false);
-  assert.equal(html.includes(' THB'), false);
+  // Amounts carry no currency suffix; the unit is in the column headings.
+  const summary = html.slice(html.indexOf('class="summary"'), html.indexOf('by-item-heading'));
+  assert.equal(summary.includes(' THB'), false);
 });
 
 test('production schema shape accepts an fx rate with more than two decimal places', () => {
@@ -143,7 +145,7 @@ test('production schema shape accepts an fx rate with more than two decimal plac
     email: 'investor@example.com',
     name: 'Example Investor',
   });
-  assert.match(html, /แปลงดอลลาร์ที่ 1\.23456 บาท\/ดอลลาร์ จาก &lt;source&gt; อัปเดต &lt;updatedDisplay&gt;/);
-  assert.equal(html.includes('1.23 บาท'), false);
+  assert.match(html, /1 &lt;base&gt; = 1\.23456 &lt;quote&gt; · &lt;source&gt; · &lt;updatedDisplay&gt;/);
+  assert.equal(html.includes('1.23 &lt;quote&gt;'), false);
   assert.match(html, />0\.00</);
 });
