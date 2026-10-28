@@ -179,6 +179,28 @@ test('a store read failure does not echo the underlying error', async () => {
   });
 });
 
+test('a signed-in user can open a forecast whose fx rate has five decimal places', async () => {
+  const data = structuredClone(example);
+  delete data.notice;
+  data.fx.rate = '1.23456';
+  const { app } = appWith({}, { forecast: data });
+  await withServer(app, async (base) => {
+    const result = await signIn(base, 'allowed');
+    const home = await fetch(`${base}/`, { headers: { cookie: result.jar } });
+    assert.equal(home.status, 200);
+    const html = await home.text();
+    assert.equal(html.includes('ไม่สามารถอ่านไฟล์ประมาณการได้'), false);
+    assert.match(html, /แปลงดอลลาร์ที่ 1\.23456 บาท\/ดอลลาร์/);
+    assert.equal(html.includes('1.23 บาท'), false);
+    const api = await fetch(`${base}/api/forecast`, { headers: { cookie: result.jar } });
+    assert.equal(api.status, 200);
+    const body = await api.json();
+    assert.equal(body.example, false);
+    assert.equal(body.forecast.fx.rate, '1.23456');
+    assert.equal(body.forecast.registeredCapital, example.registeredCapital);
+  });
+});
+
 test('missing required env fails closed', async () => {
   let called = false;
   const oidc = {
@@ -199,7 +221,11 @@ test('missing required env fails closed', async () => {
     oidc,
   });
   await withServer(app, async (base) => {
-    for (const pathName of ['/health', '/api/forecast', '/', '/login', '/auth/google']) {
+    const health = await fetch(`${base}/health`, { redirect: 'manual' });
+    assert.equal(health.status, 200);
+    assert.deepEqual(await health.json(), { ok: true });
+
+    for (const pathName of ['/api/forecast', '/', '/login', '/auth/google', '/login-assets/login.css']) {
       const response = await fetch(`${base}${pathName}`, { redirect: 'manual' });
       assert.equal(response.status, 503, pathName);
       const body = await response.json();

@@ -74,6 +74,11 @@ export function createApp(options = {}) {
     next();
   });
 
+  // Render checks this before Google OAuth env vars exist. Keep it ahead of the gate below.
+  app.get('/health', (req, res) => {
+    res.json({ ok: true });
+  });
+
   app.use((req, res, next) => {
     if (config.ok) {
       next();
@@ -84,10 +89,6 @@ export function createApp(options = {}) {
       message: `Server is not configured. Set required environment variables: ${config.missing.join(', ')}`,
       missing: config.missing,
     });
-  });
-
-  app.get('/health', (req, res) => {
-    res.json({ ok: true });
   });
 
   app.use(express.urlencoded({ extended: true, limit: '32kb', parameterLimit: 80 }));
