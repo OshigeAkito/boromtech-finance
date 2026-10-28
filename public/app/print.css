@@ -1,0 +1,91 @@
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: #ece7df;
+  color: #1a1a1a;
+  font-family: "Leelawadee UI", Thonburi, "Noto Sans Thai", Sarabun, "Segoe UI", sans-serif;
+  line-height: 1.45;
+}
+.toolbar {
+  max-width: 920px;
+  margin: 16px auto;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.toolbar a, .toolbar button {
+  font: inherit;
+  font-weight: 700;
+  color: #9a3412;
+  background: white;
+  border: 1px solid #9a3412;
+  border-radius: 999px;
+  padding: 8px 14px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.sheet {
+  max-width: 920px;
+  margin: 0 auto 32px;
+  background: white;
+  padding: 22px 26px 28px;
+}
+.draft {
+  margin: 0 0 12px;
+  color: #9f1239;
+  font-weight: 800;
+  text-align: center;
+}
+h1 { margin: 0; text-align: center; font-size: 1.45rem; }
+.sub, .company { margin: 4px 0; text-align: center; }
+.company { font-weight: 800; }
+h2 {
+  margin: 16px 0 0;
+  background: #c2410c;
+  color: white;
+  font-size: 1rem;
+  padding: 6px 10px;
+}
+table.fields { width: 100%; border-collapse: collapse; }
+table.fields th, table.fields td {
+  border: 1px solid #444;
+  padding: 6px 8px;
+  vertical-align: top;
+  text-align: left;
+}
+table.fields th {
+  width: 28%;
+  background: #fff7ed;
+  font-weight: 700;
+}
+.tick { font-weight: 700; }
+.aside, .mask { color: #9f1239; }
+.mask { font-weight: 700; }
+.checks { list-style: none; padding: 8px 4px; margin: 0; }
+.checks li { margin: 6px 0; }
+.cert { margin: 12px 0; }
+.signs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-top: 28px;
+  text-align: center;
+}
+.footer {
+  margin: 28px 0 0;
+  text-align: center;
+  font-size: .85rem;
+  color: #444;
+}
+@page { margin: 12mm; }
+@media print {
+  body { background: white; }
+  .no-print { display: none !important; }
+  .sheet { margin: 0; max-width: none; padding: 0; }
+}
+@media (max-width: 720px) {
+  .sheet { padding: 12px; }
+  .signs { display: block; }
+  table.fields th { width: auto; }
+}

@@ -1,6 +1,5 @@
 # Render Blueprint. Secret values are entered in the dashboard (sync: false).
-# The real forecast is NOT an env var. Add a Secret File named forecast.json.
-# Render mounts it at /etc/secrets/forecast.json.
+# Forecast figures live in Supabase. Do not add a Render secret file for them.
 services:
   - type: web
     name: boromtech-finance
@@ -25,5 +24,7 @@ services:
         sync: false
       - key: BASE_URL
         sync: false
-      - key: FORECAST_PATH
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
