@@ -219,6 +219,29 @@ test('a present but unreadable forecast does not fall open to silent success', a
   });
 });
 
+test('a signed-in user can open a forecast whose fx rate has five decimal places', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'forecast-fx-http-'));
+  const file = path.join(dir, 'forecast.json');
+  const data = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, 'fixtures', 'schema-shape.json'), 'utf8'));
+  data.fx.rate = '1.23456';
+  fs.writeFileSync(file, JSON.stringify(data));
+  const { app } = appWith({ FORECAST_PATH: file });
+  await withServer(app, async (base) => {
+    const result = await signIn(base, 'allowed');
+    const home = await fetch(`${base}/`, { headers: { cookie: result.jar } });
+    assert.equal(home.status, 200);
+    const html = await home.text();
+    assert.equal(html.includes('ไม่สามารถอ่านไฟล์ประมาณการได้'), false);
+    assert.match(html, /แปลงดอลลาร์ที่ 1\.23456 บาท\/ดอลลาร์/);
+    const api = await fetch(`${base}/api/forecast`, { headers: { cookie: result.jar } });
+    assert.equal(api.status, 200);
+    const body = await api.json();
+    assert.equal(body.example, false);
+    assert.equal(body.forecast.fx.rate, '1.23456');
+    assert.equal(body.forecast.registeredCapital, '0.00');
+  });
+});
+
 test('missing required env fails closed', async () => {
   let called = false;
   const oidc = {
@@ -239,7 +262,11 @@ test('missing required env fails closed', async () => {
     oidc,
   });
   await withServer(app, async (base) => {
-    for (const pathName of ['/health', '/api/forecast', '/', '/login', '/auth/google']) {
+    const health = await fetch(`${base}/health`, { redirect: 'manual' });
+    assert.equal(health.status, 200);
+    assert.deepEqual(await health.json(), { ok: true });
+
+    for (const pathName of ['/api/forecast', '/', '/login', '/auth/google', '/login-assets/login.css']) {
       const response = await fetch(`${base}${pathName}`, { redirect: 'manual' });
       assert.equal(response.status, 503, pathName);
       const body = await response.json();
