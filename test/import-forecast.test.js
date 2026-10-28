@@ -31,6 +31,29 @@ test('import refuses a file inside the repository and seeds a store from an outs
   fs.unlinkSync(outside);
 });
 
+test('an ISO fx.updatedAt is stored as its calendar date', async () => {
+  const outside = path.join(os.tmpdir(), `forecast-import-date-${process.pid}.json`);
+  const data = JSON.parse(fs.readFileSync(examplePath, 'utf8'));
+  data.fx.updatedAt = '2026-01-01T07:02:00+07:00';
+  fs.writeFileSync(outside, JSON.stringify(data));
+  const store = createMemoryStore();
+  const result = await importForecastFile({ filePath: outside, repoRoot, store });
+  assert.equal(result.months, data.months.length);
+  const loaded = await store.loadForecast();
+  assert.equal(loaded.fx.updatedAt, '2026-01-01');
+  assert.equal(loaded.fx.updatedDisplay, data.fx.updatedDisplay);
+  fs.unlinkSync(outside);
+
+  const bad = path.join(os.tmpdir(), `forecast-import-date-bad-${process.pid}.json`);
+  data.fx.updatedAt = '2026-01-01T25:02:00Z';
+  fs.writeFileSync(bad, JSON.stringify(data));
+  await assert.rejects(
+    () => importForecastFile({ filePath: bad, repoRoot, store: createMemoryStore() }),
+    (error) => error.code === 'INVALID' && error.details.includes('fx.updatedAt must be YYYY-MM-DD'),
+  );
+  fs.unlinkSync(bad);
+});
+
 test('the import command does not read a repository file or call the network', () => {
   const refused = spawnSync(process.execPath, [script, examplePath], {
     encoding: 'utf8',
