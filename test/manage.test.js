@@ -91,7 +91,7 @@ function multipart(fields, files) {
 test('signed-in edits change the dashboard on the next load and reject bad input', async () => {
   const app = appWith();
   await withServer(app, async (base) => {
-    const signedOut = await fetch(`${base}/settings`, {
+    const signedOut = await fetch(`${base}/capital`, {
       method: 'POST',
       redirect: 'manual',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
@@ -109,23 +109,25 @@ test('signed-in edits change the dashboard on the next load and reject bad input
     assert.match(first.headers.get('content-security-policy'), /script-src 'self'/);
     assert.equal(/supabase/.test(first.headers.get('content-security-policy')), false);
 
-    const blocked = await postForm(base, result.jar, '/settings', settingsFields('', { company: 'ไม่ควรบันทึก' }));
+    const blocked = await postForm(base, result.jar, '/capital', settingsFields('', { company: 'ไม่ควรบันทึก' }));
     assert.equal(blocked.status, 403);
     const still = await (await fetch(`${base}/api/forecast`, { headers: { cookie: result.jar } })).json();
     assert.equal(still.forecast.company, example.company);
 
-    const invalid = await postForm(base, result.jar, '/settings', settingsFields(csrf, { fxRate: '33.787050009' }));
+    const invalid = await postForm(base, result.jar, '/capital', settingsFields(csrf, { fxRate: '33.787050009' }));
     assert.equal(invalid.status, 400);
-    assert.match(await invalid.text(), /อัตราแลกเปลี่ยน/);
+    assert.match(await invalid.text(), /Exchange rate must be more than 0/);
 
+    // The old /settings address still saves, for forms left open in a browser.
     const saved = await postForm(base, result.jar, '/settings', settingsFields(csrf, {
       company: 'บริษัท ทดสอบแก้ไข จำกัด',
       fxRate: '33.78705',
     }));
     assert.equal(saved.status, 303);
+    assert.equal(saved.headers.get('location'), '/capital?saved=1');
     const after = await (await fetch(`${base}/`, { headers: { cookie: result.jar } })).text();
     assert.equal(after.includes('บริษัท ทดสอบแก้ไข จำกัด'), true);
-    assert.match(after, /แปลงดอลลาร์ที่ 33\.78705 บาท\/ดอลลาร์/);
+    assert.match(after, /1 USD = 33\.78705 THB/);
 
     const forecast = await (await fetch(`${base}/api/forecast`, { headers: { cookie: result.jar } })).json();
     const month = forecast.forecast.months[0];
@@ -162,6 +164,7 @@ test('signed-in edits change the dashboard on the next load and reject bad input
       revenue: '123.45',
     });
     assert.equal(revenue.status, 303);
+    assert.equal(revenue.headers.get('location'), '/income?saved=1');
     const withRevenue = await (await fetch(`${base}/`, { headers: { cookie: result.jar } })).text();
     assert.match(withRevenue, /123\.45/);
 
@@ -174,6 +177,103 @@ test('signed-in edits change the dashboard on the next load and reject bad input
     const stillIn = await fetch(`${base}/api/forecast`, { headers: { cookie: result.jar } });
     assert.equal(stillIn.status, 200);
     assert.equal(csrfFrom(fresh).length > 20, true);
+  });
+});
+
+test('four tabs: income holds the months, expenses has actual and planned, capital holds settings', async () => {
+  const app = appWith();
+  await withServer(app, async (base) => {
+    const result = await signIn(base, 'allowed');
+    const get = (pathname) => fetch(`${base}${pathname}`, { redirect: 'manual', headers: { cookie: result.jar } });
+
+    const home = await (await get('/')).text();
+    const nav = home.slice(home.indexOf('class="nav"'), home.indexOf('</nav>'));
+    assert.deepEqual([...nav.matchAll(/<a href="([^"]+)"[^>]*>([^<]+)<\/a>/g)].map((m) => [m[1], m[2]]), [
+      ['/', 'Dashboard'],
+      ['/income', 'Income'],
+      ['/actual', 'Expenses'],
+      ['/capital', 'Capital'],
+    ]);
+    assert.match(home, /<html lang="en">/);
+
+    for (const [from, to] of [['/settings', '/capital'], ['/reimburse', '/actual']]) {
+      const moved = await get(from);
+      assert.equal(moved.status, 301);
+      assert.equal(moved.headers.get('location'), to);
+    }
+
+    const actual = await (await get('/actual')).text();
+    const planned = await (await get('/forecast')).text();
+    for (const page of [actual, planned]) {
+      assert.match(page, /<a href="\/actual"[^>]*>Expenses<\/a>/);
+      assert.match(page, /class="subtabs"/);
+    }
+    assert.match(actual, /<a href="\/actual" aria-current="page">Actual<\/a>/);
+    assert.match(planned, /<a href="\/forecast" aria-current="page">Planned<\/a>/);
+    assert.match(planned, /January 2026/);
+
+    const income = await (await get('/income')).text();
+    const csrf = csrfFrom(income);
+    assert.match(income, /<a href="\/income" aria-current="page">Income<\/a>/);
+    assert.match(income, /name="key" type="month"/);
+    assert.match(income, /<th scope="row">February 2026<\/th>/);
+    assert.match(income, /value="50000\.00"/);
+
+    // A month picked from the month input gets English names from its key.
+    const added = await postForm(base, result.jar, '/forecast/months', { csrf, key: '2026-04', revenue: '1500' });
+    assert.equal(added.status, 303);
+    assert.equal(added.headers.get('location'), '/income?saved=1');
+    const data = (await (await get('/api/forecast')).json()).forecast;
+    const april = data.months.find((month) => month.key === '2026-04');
+    assert.equal(april.label, 'Apr 2026');
+    assert.equal(april.labelFull, 'April 2026');
+    assert.equal(april.revenue, '1500.00');
+    const missing = await postForm(base, result.jar, '/forecast/months', { csrf, key: '', revenue: '1' });
+    assert.equal(missing.status, 400);
+    assert.match(await missing.text(), /Pick a month/);
+
+    const capital = await (await get('/capital')).text();
+    assert.match(capital, /<a href="\/capital" aria-current="page">Capital<\/a>/);
+    assert.match(capital, /THB per 1 USD/);
+    assert.equal(capital.includes('name="openingShare"'), false);
+    assert.equal(capital.includes('name="fxUpdatedDisplay"'), false);
+
+    // Only the fields on the page: share, source and the rate's display date are worked out.
+    const saved = await postForm(base, result.jar, '/capital', {
+      csrf,
+      company: example.company,
+      currency: 'THB',
+      registeredCapital: '500000',
+      openingAmount: '125000',
+      fxBase: 'USD',
+      fxQuote: 'THB',
+      fxRate: '33.78705',
+      fxUpdatedAt: '2026-10-27',
+      fxSource: '',
+      documentPrefix: 'EXP',
+      balanceFormula: '',
+      assumptions: '',
+      notYetIncluded: '',
+    });
+    assert.equal(saved.status, 303);
+    const after = (await (await get('/api/forecast')).json()).forecast;
+    assert.equal(String(after.openingCapital.sharePercent).replace(/\.0+$/, ''), '25');
+    assert.equal(after.fx.source, 'Entered manually');
+    assert.equal(after.fx.updatedDisplay, '27 Oct 2026');
+    assert.equal(after.openingCapital.assumed, false);
+    const dashboard = await (await get('/')).text();
+    assert.match(dashboard, /1 USD = 33\.78705 THB · Entered manually · 27 Oct 2026/);
+
+    const tooMuch = await postForm(base, result.jar, '/capital', {
+      csrf,
+      company: example.company,
+      registeredCapital: '100',
+      openingAmount: '200',
+      fxRate: '30',
+      fxUpdatedAt: '2026-10-27',
+    });
+    assert.equal(tooMuch.status, 400);
+    assert.match(await tooMuch.text(), /cannot be more than registered capital/);
   });
 });
 

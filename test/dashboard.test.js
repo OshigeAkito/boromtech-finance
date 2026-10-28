@@ -163,46 +163,48 @@ test('example dashboard HTML has the chart, expandable table, group totals, and 
   assert.match(html, /<p class="kpi-value">1,000,000\.00<\/p>/);
   assert.match(html, /<p class="kpi-value">370,000\.00<\/p>/);
   assert.match(html, /<p class="kpi-value">680,000\.00<\/p>/);
-  assert.match(html, /เหลือ 68\.0% ของทุนยกมา/);
+  assert.match(html, /68\.0% of opening capital left/);
   // Balance and spending charts live on separate scales, with hover text on every mark.
-  assert.match(html, /data-tip="ทุนยกมา: 1,000,000\.00 บาท"/);
-  assert.match(html, /data-tip="ม\.ค\. · เงินทุนคงเหลือ: 870,000\.00 บาท"/);
-  assert.match(html, /data-tip="ม\.ค\. · รายจ่ายรวม 130,000\.00 บาท — /);
+  assert.match(html, /data-tip="Opening capital: 1,000,000\.00 THB"/);
+  assert.match(html, /data-tip="Jan 2026 · Balance: 870,000\.00 THB"/);
+  assert.match(html, /data-tip="Jan 2026 · Expenses 130,000\.00 THB — /);
   assert.equal(html.split('class="hit"').length - 1, 3 + 1 + 3);
   assert.match(html, /<span class="swatch" style="background:#2a78d6"><\/span>ค่าเช่าสำนักงานตัวอย่าง/);
   assert.match(html, /id="chart-tip" role="tooltip" hidden/);
-  assert.match(html, />ม\.ค\.</);
-  assert.match(html, />ก\.พ\.</);
-  assert.match(html, />มี\.ค\.</);
-  assert.match(html, /<th class="num col-revenue" scope="col">รายได้<\/th>/);
-  assert.match(html, /<th class="num col-cash" scope="col">รายจ่าย<\/th>/);
-  assert.match(html, /<th class="num col-capital" scope="col">เงินทุนสิ้นเดือน<\/th>/);
-  assert.match(html, /id="expand-all">ขยายทั้งหมด</);
-  assert.match(html, /id="collapse-all">ย่อทั้งหมด</);
+  // Month names come from the 2026-01 style keys, in English.
+  assert.match(html, />Jan 2026</);
+  assert.match(html, />Feb 2026</);
+  assert.match(html, />Mar 2026</);
+  assert.match(html, /January 2026 – March 2026 · 3 months/);
+  assert.match(html, /<th class="num col-revenue" scope="col">Income<\/th>/);
+  assert.match(html, /<th class="num col-cash" scope="col">Expenses<\/th>/);
+  assert.match(html, /<th class="num col-capital" scope="col">Month-end balance<\/th>/);
+  assert.match(html, /id="expand-all">Expand all</);
+  assert.match(html, /id="collapse-all">Collapse all</);
   assert.equal(html.split('aria-expanded="false"').length - 1, 3);
   assert.equal(html.split('▸').length - 1, 3);
   assert.equal(html.includes('▾'), false);
 
   const summary = html.slice(html.indexOf('class="summary"'), html.indexOf('by-item-heading'));
-  assert.match(summary, /ทุนเริ่มต้น \(ยอดยกมา\) <span class="assumption">\(สมมติ\)<\/span>[\s\S]*?–[\s\S]*?–[\s\S]*?1,000,000\.00/);
+  assert.match(summary, /Opening capital <span class="assumption">assumed<\/span>[\s\S]*?–[\s\S]*?–[\s\S]*?1,000,000\.00/);
   assert.match(summary, /aria-controls="month-detail-0"/);
   assert.match(summary, /id="month-detail-0" hidden/);
-  assert.equal(summary.split('รายได้: ยังไม่มีข้อมูลรายได้').length - 1, 2);
-  assert.match(summary, /<span class="label">รายได้<\/span><span class="amt">50,000\.00<\/span>/);
-  assert.match(summary, /<span class="label">รายจ่าย: ค่าเครื่องมือตัวอย่าง <span class="assumption">\(สมมติ\)<\/span><\/span><span class="amt">10,000\.00<\/span>/);
+  assert.equal(summary.split('Income: none yet').length - 1, 2);
+  assert.match(summary, /<span class="label">Income<\/span><span class="amt">50,000\.00<\/span>/);
+  assert.match(summary, /<span class="label">ค่าเครื่องมือตัวอย่าง <span class="assumption">assumed<\/span><\/span><span class="amt">10,000\.00<\/span>/);
   assert.match(summary, /<tr class="total">[\s\S]*?50,000\.00[\s\S]*?370,000\.00[\s\S]*?680,000\.00/);
   assert.equal(summary.includes('2,350,000.00'), false);
 
-  assert.match(html, /รายจ่ายรวม 3 เดือน แยกตามรายการ \(บาท\)/);
-  assert.equal(html.includes('รายจ่ายรวม 10 เดือน'), false);
-  assert.match(html, /<th scope="col">รายการ<\/th>[\s\S]*?<th class="num" scope="col">รวม \(บาท\)<\/th>/);
+  assert.match(html, /Planned expenses by item, 3 months \(THB\)/);
+  assert.equal(html.includes('10 months'), false);
+  assert.match(html, /<th scope="col">Item<\/th>[\s\S]*?<th class="num" scope="col">Total \(THB\)<\/th>/);
   assert.match(html, /<span class="share-pct">16\.2%<\/span>/);
   assert.match(html, /<th scope="row">ค่าเช่าสำนักงานตัวอย่าง<\/th>[\s\S]*?60,000\.00/);
-  assert.match(html, /<th scope="row">ค่าเครื่องมือตัวอย่าง <span class="assumption">\(สมมติ\)<\/span><\/th>/);
+  assert.match(html, /<th scope="row">ค่าเครื่องมือตัวอย่าง <span class="assumption">assumed<\/span><\/th>/);
   const groups = html.slice(html.indexOf('class="groups"'));
   assert.match(groups, /<tr class="total">[\s\S]*?370,000\.00/);
 
-  assert.match(html, /แปลงดอลลาร์ที่ 30\.00 บาท\/ดอลลาร์ จาก อัตราสมมติสำหรับไฟล์ตัวอย่าง อัปเดต 1 มกราคม 2026/);
+  assert.match(html, /1 USD = 30\.00 THB · อัตราสมมติสำหรับไฟล์ตัวอย่าง · 1 Jan 2026/);
   for (const note of [...example.assumptions, ...example.notYetIncluded]) {
     assert.equal(html.includes(note), true);
   }
@@ -231,11 +233,13 @@ test('the month count in the group heading follows months.length', () => {
     email: 'investor@example.com',
     name: '',
   });
-  assert.match(html, /รายจ่ายรวม 1 เดือน แยกตามรายการ \(บาท\)/);
+  assert.match(html, /Planned expenses by item, 1 month \(THB\)/);
   assert.match(html, /<th scope="row">once<\/th>/);
-  assert.match(html, /รายได้: ยังไม่มีข้อมูลรายได้/);
+  assert.match(html, /Income: none yet/);
   assert.equal(html.includes('class="example-banner"'), false);
-  assert.match(html, /แปลงดอลลาร์ที่ 30\.50 บาท\/ดอลลาร์ จาก แหล่งตัวอย่าง อัปเดต ม\.ค\. 2026/);
+  assert.match(html, /1 USD = 30\.50 THB · แหล่งตัวอย่าง · 1 Jan 2026/);
+  // A key that is not a calendar month keeps its stored label.
+  assert.match(html, />เม\.ย\.</);
 });
 
 test('dashboard script only toggles rows and contains no figures', () => {

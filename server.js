@@ -11,14 +11,14 @@ import {
   actualDetailPage,
   actualFormPage,
   actualListPage,
+  capitalPage,
   emptyDashboardPage,
-  forecastPage,
+  incomePage,
   itemFormPage,
   logoutConfirmPage,
   messagePage,
   notConfiguredPage,
-  reimburseSelectPage,
-  settingsPage,
+  plannedPage,
 } from './lib/manage-pages.js';
 import { parseMultipart } from './lib/multipart.js';
 import { dashboardPage, loginPage, noAccessPage, notFoundPage } from './lib/pages.js';
@@ -280,12 +280,12 @@ export function createApp(options = {}) {
     }));
   });
 
-  app.get('/settings', async (req, res) => {
+  app.get('/capital', async (req, res) => {
     const session = requireUser(req, res);
     if (!session) return;
     const forecast = await readForecast(req, res, session);
     if (forecast === undefined) return;
-    res.type('html').send(settingsPage({
+    res.type('html').send(capitalPage({
       session,
       forecast,
       csrf: session.csrf,
@@ -293,14 +293,19 @@ export function createApp(options = {}) {
     }));
   });
 
-  app.post('/settings', async (req, res) => {
+  // Settings now live on the Capital page; keep old links and bookmarks working.
+  app.get('/settings', (req, res) => {
+    res.redirect(301, '/capital');
+  });
+
+  app.post(['/capital', '/settings'], async (req, res) => {
     const session = requireWrite(req, res);
     if (!session) return;
     const parsed = parseSettings(req.body || {});
     if (!parsed.ok) {
       const forecast = await readForecast(req, res, session);
       if (forecast === undefined) return;
-      res.status(400).type('html').send(settingsPage({
+      res.status(400).type('html').send(capitalPage({
         session,
         forecast,
         csrf: session.csrf,
@@ -311,10 +316,23 @@ export function createApp(options = {}) {
     }
     try {
       await store.saveSettings(parsed.value);
-      res.redirect(303, '/settings?saved=1');
+      res.redirect(303, '/capital?saved=1');
     } catch (error) {
       sendStoreError(res, session, error);
     }
+  });
+
+  app.get('/income', async (req, res) => {
+    const session = requireUser(req, res);
+    if (!session) return;
+    const forecast = await readForecast(req, res, session);
+    if (forecast === undefined) return;
+    res.type('html').send(incomePage({
+      session,
+      forecast,
+      csrf: session.csrf,
+      saved: req.query.saved === '1',
+    }));
   });
 
   app.get('/forecast', async (req, res) => {
@@ -322,7 +340,7 @@ export function createApp(options = {}) {
     if (!session) return;
     const forecast = await readForecast(req, res, session);
     if (forecast === undefined) return;
-    res.type('html').send(forecastPage({
+    res.type('html').send(plannedPage({
       session,
       forecast,
       csrf: session.csrf,
@@ -337,7 +355,7 @@ export function createApp(options = {}) {
     if (!parsed.ok) {
       const forecast = await readForecast(req, res, session);
       if (forecast === undefined) return;
-      res.status(400).type('html').send(forecastPage({
+      res.status(400).type('html').send(incomePage({
         session,
         forecast,
         csrf: session.csrf,
@@ -347,7 +365,7 @@ export function createApp(options = {}) {
     }
     try {
       await store.createMonth(parsed.value);
-      res.redirect(303, '/forecast?saved=1');
+      res.redirect(303, '/income?saved=1');
     } catch (error) {
       sendStoreError(res, session, error);
     }
@@ -364,7 +382,7 @@ export function createApp(options = {}) {
     if (!parsed.ok) {
       const forecast = await readForecast(req, res, session);
       if (forecast === undefined) return;
-      res.status(400).type('html').send(forecastPage({
+      res.status(400).type('html').send(incomePage({
         session,
         forecast,
         csrf: session.csrf,
@@ -374,14 +392,14 @@ export function createApp(options = {}) {
     }
     try {
       await store.updateMonth(req.params.id, parsed.value);
-      res.redirect(303, '/forecast?saved=1');
+      res.redirect(303, '/income?saved=1');
     } catch (error) {
       sendStoreError(res, session, error);
     }
   });
 
   app.post('/forecast/months/:id/delete', async (req, res) => {
-    await deleteById(req, res, (id) => store.deleteMonth(id), '/forecast?saved=1');
+    await deleteById(req, res, (id) => store.deleteMonth(id), '/income?saved=1');
   });
 
   app.get('/forecast/items/new', async (req, res) => {
@@ -645,16 +663,9 @@ export function createApp(options = {}) {
     }
   });
 
-  app.get('/reimburse', async (req, res) => {
-    const session = requireUser(req, res);
-    if (!session) return;
-    if (!(await ensureStore(req, res, session))) return;
-    try {
-      const expenses = await store.listActual();
-      res.type('html').send(reimburseSelectPage({ session, expenses, csrf: session.csrf }));
-    } catch (error) {
-      sendStoreError(res, session, error);
-    }
+  // Reimbursement forms are printed from each actual expense now.
+  app.get('/reimburse', (req, res) => {
+    res.redirect(301, '/actual');
   });
 
   app.use((req, res) => {
@@ -692,7 +703,7 @@ export function createApp(options = {}) {
       });
       return;
     }
-    res.status(status).type('html').send('<!doctype html><html lang="th"><meta charset="utf-8"><title>Error</title><p>เกิดข้อผิดพลาดภายในระบบ</p></html>');
+    res.status(status).type('html').send('<!doctype html><html lang="en"><meta charset="utf-8"><title>Error</title><p>Something went wrong on the server.</p></html>');
   });
 
   return app;
@@ -742,8 +753,8 @@ export function createApp(options = {}) {
   function rejectCsrf(res, session) {
     res.status(403).type('html').send(messagePage({
       session,
-      title: 'คำขอถูกปฏิเสธ',
-      message: 'โทเคนยืนยันไม่ถูกต้อง กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง',
+      title: 'Request rejected',
+      message: 'The form token is not valid. Reload the page and try again.',
     }));
   }
 
@@ -768,8 +779,8 @@ export function createApp(options = {}) {
       } else {
         res.status(500).type('html').send(messagePage({
           session,
-          title: 'อ่านข้อมูลไม่สำเร็จ',
-          message: 'ระบบอ่านข้อมูลไม่สำเร็จ กรุณาลองใหม่',
+          title: 'Could not read data',
+          message: 'The data could not be read. Please try again.',
         }));
       }
       return undefined;
@@ -784,16 +795,16 @@ export function createApp(options = {}) {
     if (error && error.code === 'CONFLICT') {
       res.status(409).type('html').send(messagePage({
         session,
-        title: 'ข้อมูลซ้ำ',
-        message: 'มีรหัสนี้อยู่แล้ว',
+        title: 'Already exists',
+        message: 'That month or code already exists.',
       }));
       return;
     }
     console.error('store failed');
     res.status(500).type('html').send(messagePage({
       session,
-      title: 'บันทึกไม่สำเร็จ',
-      message: 'ระบบอ่านหรือบันทึกข้อมูลไม่สำเร็จ กรุณาลองใหม่',
+      title: 'Not saved',
+      message: 'The data could not be read or saved. Please try again.',
     }));
   }
 
@@ -807,8 +818,8 @@ export function createApp(options = {}) {
     if (!confirmedDelete(req.body || {})) {
       res.status(400).type('html').send(messagePage({
         session,
-        title: 'ยังไม่ได้ยืนยัน',
-        message: 'ติ๊กยืนยันการลบก่อนจึงจะลบได้',
+        title: 'Not confirmed',
+        message: 'Tick the confirmation box before deleting.',
       }));
       return;
     }
@@ -826,7 +837,7 @@ export function createApp(options = {}) {
       res.status(415).type('html').send(actualFormPage({
         session,
         csrf: session.csrf,
-        errors: [{ message: 'ต้องส่งแบบฟอร์มแบบไฟล์แนบ' }],
+        errors: [{ message: 'The form must be sent with attachments' }],
       }));
       return null;
     }
@@ -839,7 +850,7 @@ export function createApp(options = {}) {
           res.status(413).type('html').send(actualFormPage({
             session,
             csrf: session.csrf,
-            errors: [{ message: 'ไฟล์แนบใหญ่เกินไป' }],
+            errors: [{ message: 'The attachments are too large' }],
           }));
           return null;
         }
@@ -849,7 +860,7 @@ export function createApp(options = {}) {
       res.status(400).type('html').send(actualFormPage({
         session,
         csrf: session.csrf,
-        errors: [{ message: 'อ่านไฟล์แนบไม่สำเร็จ' }],
+        errors: [{ message: 'The attachments could not be read' }],
       }));
       return null;
     }
@@ -857,8 +868,8 @@ export function createApp(options = {}) {
       return parseMultipart(Buffer.concat(chunks), type);
     } catch (error) {
       const message = error && error.code === 'FILE_TOO_LARGE'
-        ? 'แต่ละไฟล์ต้องไม่เกิน 5 MB'
-        : 'อ่านไฟล์แนบไม่สำเร็จ';
+        ? 'Each file must be 5 MB or less'
+        : 'The attachments could not be read';
       res.status(400).type('html').send(actualFormPage({
         session,
         csrf: session.csrf,
