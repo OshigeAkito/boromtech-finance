@@ -187,7 +187,8 @@ test('four tabs: income holds the months, expenses has actual and planned, capit
     const get = (pathname) => fetch(`${base}${pathname}`, { redirect: 'manual', headers: { cookie: result.jar } });
 
     const home = await (await get('/')).text();
-    const nav = home.slice(home.indexOf('class="nav"'), home.indexOf('</nav>'));
+    const navStart = home.indexOf('class="nav"');
+    const nav = home.slice(navStart, home.indexOf('</nav>', navStart));
     assert.deepEqual([...nav.matchAll(/<a href="([^"]+)"[^>]*>([^<]+)<\/a>/g)].map((m) => [m[1], m[2]]), [
       ['/', 'Dashboard'],
       ['/income', 'Income'],
@@ -274,6 +275,63 @@ test('four tabs: income holds the months, expenses has actual and planned, capit
     });
     assert.equal(tooMuch.status, 400);
     assert.match(await tooMuch.text(), /cannot be more than registered capital/);
+  });
+});
+
+test('the EN | TH switch remembers the language and only returns to same-site pages', async () => {
+  const app = appWith();
+  await withServer(app, async (base) => {
+    const login = await (await fetch(`${base}/login`)).text();
+    assert.match(login, /<html lang="en">/);
+    assert.match(login, /href="\/lang\/th\?next=%2Flogin"/);
+
+    const toThai = await fetch(`${base}/lang/th?next=${encodeURIComponent('/login')}`, { redirect: 'manual' });
+    assert.equal(toThai.status, 303);
+    assert.equal(toThai.headers.get('location'), '/login');
+    const cookie = toThai.headers.getSetCookie().find((value) => value.startsWith('bt_lang='));
+    assert.match(cookie, /^bt_lang=th;/);
+    assert.match(cookie, /HttpOnly/i);
+    const thaiLogin = await (await fetch(`${base}/login`, { headers: { cookie: 'bt_lang=th' } })).text();
+    assert.match(thaiLogin, /<html lang="th">/);
+    assert.match(thaiLogin, /เข้าสู่ระบบด้วย Google/);
+    assert.match(thaiLogin, /<a href="\/lang\/th[^"]*"[^>]*aria-current="true">TH<\/a>/);
+
+    for (const next of ['https://evil.example/', '//evil.example/', '/\\evil.example']) {
+      const away = await fetch(`${base}/lang/en?next=${encodeURIComponent(next)}`, { redirect: 'manual' });
+      assert.equal(away.headers.get('location'), '/');
+    }
+    const unknown = await fetch(`${base}/lang/fr?next=/`, { redirect: 'manual' });
+    assert.match(unknown.headers.getSetCookie()[0], /^bt_lang=en;/);
+
+    const result = await signIn(base, 'allowed');
+    const jar = `${result.jar}; bt_lang=th`;
+    const get = async (pathname) => (await fetch(`${base}${pathname}`, { headers: { cookie: jar } })).text();
+    const home = await get('/');
+    assert.match(home, /<html lang="th">/);
+    assert.match(home, /<a href="\/income"[^>]*>รายรับ<\/a>/);
+    assert.match(home, /<a href="\/capital"[^>]*>เงินทุน<\/a>/);
+    assert.match(home, /เงินทุนคงเหลือสิ้นเดือน/);
+    assert.match(home, />ม\.ค\. 69</);
+    assert.match(home, /href="\/lang\/en\?next=%2F"/);
+    assert.match(await get('/income'), /<th scope="row">มกราคม 2569<\/th>/);
+    assert.match(await get('/actual'), /<a href="\/actual" aria-current="page">จ่ายจริง<\/a>/);
+    assert.match(await get('/capital'), /บาทต่อ 1 USD/);
+
+    // Validation messages follow the language too.
+    const csrf = csrfFrom(home);
+    const missing = await fetch(`${base}/forecast/months`, {
+      method: 'POST',
+      redirect: 'manual',
+      headers: { cookie: jar, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ csrf, key: '', revenue: '1' }),
+    });
+    assert.equal(missing.status, 400);
+    assert.match(await missing.text(), /เลือกเดือน/);
+
+    // Without the cookie the site stays in English.
+    const english = await (await fetch(`${base}/`, { headers: { cookie: result.jar } })).text();
+    assert.match(english, /<html lang="en">/);
+    assert.match(english, />Jan 2026</);
   });
 });
 
