@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 import { createSupabaseStore, normalizeSupabaseUrl } from '../lib/supabase-store.js';
 
@@ -137,4 +139,52 @@ test('reads use text amounts and receipt downloads use a short-lived signed url'
     () => evilStore.readReceipt('22222222-2222-4222-8222-222222222222', '33333333-3333-4333-8333-333333333333'),
     (error) => error.code === 'STORE',
   );
+});
+
+test('repeating expenses use one rpc, and actual totals read past the first 500', async () => {
+  const calls = [];
+  const fetchImpl = async (url, options = {}) => {
+    calls.push(String(url));
+    if (String(url).includes('/rpc/create_planned_series')) {
+      const body = JSON.parse(options.body);
+      assert.deepEqual(body.payload.months.map((month) => month.key), ['2026-02', '2026-05', '2026-08']);
+      assert.equal(body.payload.item.amount, '10.00');
+      return jsonResponse(null);
+    }
+    if (String(url).includes('/rest/v1/actual_expenses')) {
+      const offset = Number(new URL(url).searchParams.get('offset') || '0');
+      const row = (index) => ({
+        id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+        document_no: `EXP-${String(index).padStart(4, '0')}`,
+        spent_on: '2026-01-15',
+        item_name: 'Synthetic row',
+        amount_text: '1.00',
+        actual_expense_files: [],
+      });
+      if (offset === 0) return jsonResponse(Array.from({ length: 500 }, (_, index) => row(index)));
+      if (offset === 500) return jsonResponse([row(500)]);
+      return jsonResponse([]);
+    }
+    throw new Error(`unexpected ${url}`);
+  };
+  const store = createSupabaseStore({ url: origin, serviceRoleKey: key, fetch: fetchImpl });
+  await store.createPlannedSeries({
+    monthKeys: ['2026-02', '2026-05', '2026-08'],
+    group: 'tools',
+    groupName: 'Tools',
+    name: 'Synthetic quarterly row',
+    amount: '10.00',
+    usd: null,
+    assumed: false,
+    note: '',
+  });
+  assert.equal(calls.filter((url) => url.includes('/rpc/create_planned_series')).length, 1);
+  const expenses = await store.listActual();
+  assert.equal(expenses.length, 501);
+  const total = expenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
+  assert.equal(total, 501);
+  const sql = fs.readFileSync(path.join(import.meta.dirname, '..', 'supabase', 'migrations', '20261029120000_create_planned_series.sql'), 'utf8');
+  assert.match(sql, /create or replace function public\.create_planned_series\(payload jsonb\)/);
+  assert.match(sql, /grant execute on function public\.create_planned_series\(jsonb\) to service_role/);
+  assert.equal(/create table/i.test(sql), false);
 });

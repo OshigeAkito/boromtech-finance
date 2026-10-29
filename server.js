@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import express from 'express';
@@ -6,6 +7,7 @@ import { emailAllowed, readConfig } from './lib/config.js';
 import { contentDisposition, validateUploads } from './lib/files.js';
 import { todayBangkok } from './lib/dates.js';
 import { createPlannedOccurrences } from './lib/planned-items.js';
+import { claimSubmit } from './lib/submit-guard.js';
 import { createGoogleOidc } from './lib/google-oidc.js';
 import { confirmedDelete, parseActual, parseItem, parseMonth, parseSettings } from './lib/input.js';
 import { LANG_COOKIE, LANG_MAX_AGE_MS, normalizeLang, safeNext, tr } from './lib/i18n.js';
@@ -315,6 +317,7 @@ export function createApp(options = {}) {
         csrf: session.csrf,
         lang: session.lang,
         path: session.path,
+        view: req.query.view === 'actual' ? 'actual' : 'plan',
       }));
     } catch (error) {
       sendStoreError(res, session, error);
@@ -418,6 +421,7 @@ export function createApp(options = {}) {
           forecast,
           csrf: session.csrf,
           errors: parsed.errors,
+          values: formValues(req.body),
         });
       res.status(400).type('html').send(page);
       return;
@@ -426,6 +430,19 @@ export function createApp(options = {}) {
       await store.createMonth(parsed.value);
       res.redirect(303, onForecast ? '/forecast?saved=1' : '/income?saved=1');
     } catch (error) {
+      if (error && error.code === 'CONFLICT') {
+        const forecast = await readForecast(req, res, session);
+        if (forecast === undefined) return;
+        const errors = [{
+          message: tr(session.lang)('That month is already in the forecast.', 'มีเดือนนี้อยู่แล้ว'),
+        }];
+        const values = formValues(req.body);
+        const page = onForecast
+          ? plannedPage({ session, forecast, csrf: session.csrf, errors, values })
+          : incomePage({ session, forecast, csrf: session.csrf, errors, values });
+        res.status(409).type('html').send(page);
+        return;
+      }
       sendStoreError(res, session, error);
     }
   });
@@ -467,7 +484,7 @@ export function createApp(options = {}) {
     const forecast = await readForecast(req, res, session);
     if (forecast === undefined) return;
     const monthId = isUuid(req.query.month) ? req.query.month : '';
-    res.type('html').send(itemFormPage({ session, forecast, csrf: session.csrf, monthId }));
+    res.type('html').send(itemFormPage({ session, forecast, csrf: session.csrf, monthId, once: newOnce() }));
   });
 
   app.post('/forecast/items', async (req, res) => {
@@ -483,6 +500,26 @@ export function createApp(options = {}) {
         csrf: session.csrf,
         errors: parsed.errors,
         values: formValues(req.body),
+        once: newOnce(),
+      }));
+      return;
+    }
+    const once = typeof req.body?.once === 'string' ? req.body.once : '';
+    if (!claimSubmit(once)) {
+      const forecast = await readForecast(req, res, session);
+      if (forecast === undefined) return;
+      res.status(409).type('html').send(itemFormPage({
+        session,
+        forecast,
+        csrf: session.csrf,
+        errors: [{
+          message: tr(session.lang)(
+            'This form was already submitted. Check the planned expenses before saving it again.',
+            'แบบฟอร์มนี้ถูกส่งไปแล้ว ตรวจรายจ่ายประมาณการก่อนบันทึกซ้ำ',
+          ),
+        }],
+        values: formValues(req.body),
+        once: newOnce(),
       }));
       return;
     }
@@ -996,6 +1033,10 @@ function findItem(forecast, id) {
     if (item) return { ...item, monthId: month.id };
   }
   return null;
+}
+
+function newOnce() {
+  return crypto.randomBytes(16).toString('base64url');
 }
 
 function formValues(body) {

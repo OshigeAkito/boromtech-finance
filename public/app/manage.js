@@ -44,7 +44,20 @@
 
   function boot() {
     sync(document);
+    var buttons = document.querySelectorAll('button[type="submit"], input[type="submit"]');
+    for (var i = 0; i < buttons.length; i++) buttons[i].disabled = false;
   }
+
+  // Disable after the browser has accepted the submit, so a second click
+  // cannot send the same planned series twice. pageshow turns it back on.
+  document.addEventListener('submit', function (event) {
+    var form = event.target;
+    if (!form || !form.querySelectorAll) return;
+    setTimeout(function () {
+      var buttons = form.querySelectorAll('button[type="submit"], input[type="submit"]');
+      for (var i = 0; i < buttons.length; i++) buttons[i].disabled = true;
+    }, 0);
+  });
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
