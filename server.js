@@ -5,6 +5,7 @@ import { newCsrfToken, tokensMatch } from './lib/csrf.js';
 import { emailAllowed, readConfig } from './lib/config.js';
 import { contentDisposition, validateUploads } from './lib/files.js';
 import { todayBangkok } from './lib/dates.js';
+import { createPlannedOccurrences } from './lib/planned-items.js';
 import { createGoogleOidc } from './lib/google-oidc.js';
 import { confirmedDelete, parseActual, parseItem, parseMonth, parseSettings } from './lib/input.js';
 import { LANG_COOKIE, LANG_MAX_AGE_MS, normalizeLang, safeNext, tr } from './lib/i18n.js';
@@ -400,20 +401,30 @@ export function createApp(options = {}) {
     const session = requireWrite(req, res);
     if (!session) return;
     const parsed = parseMonth(req.body || {}, session.lang);
+    const onForecast = req.body?.returnTo === 'forecast';
     if (!parsed.ok) {
       const forecast = await readForecast(req, res, session);
       if (forecast === undefined) return;
-      res.status(400).type('html').send(incomePage({
-        session,
-        forecast,
-        csrf: session.csrf,
-        errors: parsed.errors,
-      }));
+      const page = onForecast
+        ? plannedPage({
+          session,
+          forecast,
+          csrf: session.csrf,
+          errors: parsed.errors,
+          values: formValues(req.body),
+        })
+        : incomePage({
+          session,
+          forecast,
+          csrf: session.csrf,
+          errors: parsed.errors,
+        });
+      res.status(400).type('html').send(page);
       return;
     }
     try {
       await store.createMonth(parsed.value);
-      res.redirect(303, '/income?saved=1');
+      res.redirect(303, onForecast ? '/forecast?saved=1' : '/income?saved=1');
     } catch (error) {
       sendStoreError(res, session, error);
     }
@@ -476,7 +487,8 @@ export function createApp(options = {}) {
       return;
     }
     try {
-      await store.createItem(parsed.value);
+      if (parsed.value.monthKeys) await createPlannedOccurrences(store, parsed.value);
+      else await store.createItem(parsed.value);
       res.redirect(303, '/forecast?saved=1');
     } catch (error) {
       sendStoreError(res, session, error);

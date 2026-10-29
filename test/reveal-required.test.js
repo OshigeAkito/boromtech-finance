@@ -207,11 +207,36 @@ test('rendered capital, income, and forecast markup has no reveal containers', (
     capitalPage({ session, forecast, csrf: 'token' }),
     incomePage({ session, forecast, csrf: 'token' }),
     plannedPage({ session, forecast, csrf: 'token' }),
-    itemFormPage({ session, forecast, csrf: 'token' }),
+    itemFormPage({ session, forecast, csrf: 'token', item: { id: '00000000-0000-4000-8000-000000000001', monthId: '00000000-0000-4000-8000-000000000002', group: 'tools', groupName: 'Tools', name: 'One row', amount: '1.00', assumed: false, note: '' } }),
   ];
   for (const html of pages) {
     assert.equal(html.includes('class="reveal"') || html.includes('reveal-off'), false);
     assert.deepEqual(hiddenRequiredControls(html), []);
     assert.equal(html.includes('/app-assets/manage.js'), false);
   }
+});
+
+test('the add-planned-expense repeat section is required only while it is open', () => {
+  const html = itemFormPage({ session, forecast: example, csrf: 'token' });
+  assert.match(html, /name="repeat"/);
+  assert.match(html, /data-reveal-required/);
+  assert.deepEqual(hiddenRequiredControls(html), []);
+  assert.match(html, /<script src="\/app-assets\/manage\.js" defer><\/script>/);
+  const count = html.match(/<input\b[^>]*\bname="repeatCount"[^>]*>/);
+  assert.ok(count);
+  assert.equal(/\srequired(?:[\s=\/]|>)/.test(count[0]), false);
+  assert.match(count[0], /data-reveal-required/);
+  for (const name of ['frequency']) {
+    const tags = [...html.matchAll(new RegExp(`<input\\b[^>]*\\bname="${name}"[^>]*>`, 'g'))].map((match) => match[0]);
+    assert.equal(tags.length, 3);
+    for (const tag of tags) assert.equal(/\srequired(?:[\s=\/]|>)/.test(tag), false);
+  }
+  const open = itemFormPage({
+    session,
+    forecast: example,
+    csrf: 'token',
+    values: { repeat: 'on', frequency: 'quarterly', repeatCount: '', monthKey: '2026-01', amount: '10.00', name: 'Row', group: 'tools', groupName: 'Tools' },
+  });
+  assert.match(open, /name="repeat"[^>]*\bchecked\b/);
+  assert.deepEqual(hiddenRequiredControls(open), []);
 });

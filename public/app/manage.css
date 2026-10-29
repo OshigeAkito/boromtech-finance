@@ -421,6 +421,10 @@ legend { font-weight: 800; padding: 0 6px; }
 .inline-form > input[type="hidden"] { display: none; }
 .inline-form .field { margin-bottom: 0; }
 .inline-form > button { grid-column: 3; grid-row: 2; height: 45px; width: auto; align-self: stretch; }
+.inline-form.month-add { grid-template-columns: minmax(0, 280px) max-content; justify-content: start; }
+.inline-form.month-add > button { grid-column: 2; justify-self: start; }
+.repeat-count { max-width: 320px; }
+.empty-note { margin: 0 0 12px; }
 .choice-label { font-weight: 700; margin: 0 0 6px; }
 .reveal { display: none; }
 fieldset:has(.reveal-trigger:checked) .reveal { display: block; }
@@ -515,7 +519,7 @@ tr.total th, tr.total td { font-weight: 800; background: var(--surface-2); borde
 @media (max-width: 720px) {
   .appbar-inner, .nav-inner, main, .page-head { padding-left: 14px; padding-right: 14px; }
   .grid, .grid.two, .grid.files, .inline-form { grid-template-columns: minmax(0, 1fr); }
-  .inline-form > button { grid-column: 1; grid-row: auto; }
+  .inline-form > button, .inline-form.month-add > button { grid-column: 1; grid-row: auto; }
   .brand-text strong { font-size: 1.15rem; }
   .brand-text span { font-size: .68rem; padding-left: 8px; }
   .page-head { padding-top: 18px; }
