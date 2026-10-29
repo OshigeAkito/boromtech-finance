@@ -78,7 +78,8 @@ function tagAttrs(tag) {
 // Builds the same multipart body a browser sends for /actual/new: every text
 // control (including blanks), one value per radio, every checkbox, and one
 // part per file input. Empty file inputs are still parts.
-function browserExpenseForm(html, file) {
+// `fields` overrides text values. A checkbox set to false is left unticked.
+function browserExpenseForm(html, file, fields = {}) {
   const start = html.indexOf('<form method="post" action="/actual"');
   const end = html.indexOf('</form>', start);
   assert.ok(start >= 0 && end > start, 'expense form missing');
@@ -104,6 +105,7 @@ function browserExpenseForm(html, file) {
     payer: 'Example Payer',
     transferRights: 'no',
     paymentOther: 'Example method',
+    ...fields,
   };
   const boundary = '----bt-browser-form';
   const chunks = [];
@@ -132,6 +134,9 @@ function browserExpenseForm(html, file) {
       continue;
     }
     if (type === 'checkbox') {
+      if (Object.hasOwn(fields, name) && fields[name] !== 'on' && fields[name] !== true && fields[name] !== '1') {
+        continue;
+      }
       parts += 1;
       push(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${group[0].value || 'on'}\r\n`);
       continue;
@@ -293,6 +298,8 @@ test('four tabs: income holds the months, expenses has actual and planned, capit
     }
     assert.match(actual, /<a href="\/actual" aria-current="page">Actual<\/a>/);
     assert.match(planned, /<a href="\/forecast" aria-current="page">Planned<\/a>/);
+    assert.match(planned, /<h1>Planned expenses<\/h1>/);
+    assert.match(actual, /<h1>Expenses<\/h1>/);
     assert.match(planned, /January 2026/);
 
     const income = await (await get('/income')).text();
@@ -345,7 +352,7 @@ test('four tabs: income holds the months, expenses has actual and planned, capit
     assert.equal(after.fx.updatedDisplay, '27 Oct 2026');
     assert.equal(after.openingCapital.assumed, false);
     const dashboard = await (await get('/')).text();
-    assert.match(dashboard, /1 USD = 33\.78705 THB · Entered manually · 27 Oct 2026/);
+    assert.match(dashboard, /1 USD = 33\.78705 THB · Source: Entered manually · 27 Oct 2026/);
 
     const tooMuch = await postForm(base, result.jar, '/capital', {
       csrf,
@@ -591,6 +598,152 @@ test('one receipt on the full expense form saves a PDF and a PNG', async () => {
     assert.match(list, /EXP-0001/);
     assert.match(list, /EXP-0002/);
     assert.equal(list.includes('No actual expenses yet'), false);
+  });
+});
+
+const PDF = Buffer.from('%PDF-1.7\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n');
+
+function receiptFile() {
+  return { field: 'receiptFile', filename: 'receipt.pdf', type: 'application/pdf', bytes: PDF };
+}
+
+async function postExpense(base, jar, page, fields) {
+  const form = browserExpenseForm(page, receiptFile(), fields);
+  assert.ok(form.parts > 24, `expected the full form, got ${form.parts} parts`);
+  const created = await fetch(`${base}/actual`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { cookie: jar, 'content-type': form.contentType },
+    body: form.body,
+  });
+  return { created, form };
+}
+
+test('a service period with only from and to saves one PDF', async () => {
+  const app = appWith();
+  await withServer(app, async (base) => {
+    const result = await signIn(base, 'allowed');
+    const page = await (await fetch(`${base}/actual/new`, { headers: { cookie: result.jar } })).text();
+    const backwards = await postExpense(base, result.jar, page, {
+      periodNone: false,
+      periodText: '',
+      periodFrom: '2026-11-23',
+      periodTo: '2026-10-23',
+      note: 'First line\nSecond line',
+    });
+    const rejected = await backwards.created.text();
+    assert.equal(backwards.created.status, 400, rejected);
+    assert.match(rejected, /The end date must be on or after the start date/);
+    assert.match(rejected, /The attached file was not kept\. Attach it again before saving\./);
+    assert.match(rejected, /name="periodFrom"[^>]*value="2026-11-23"/);
+    assert.match(rejected, /name="periodTo"[^>]*value="2026-10-23"/);
+    assert.equal(/name="receiptFile"[^>]*value=/.test(rejected), false);
+
+    const saved = await postExpense(base, result.jar, page, {
+      periodNone: false,
+      periodText: '',
+      periodFrom: '2026-10-23',
+      periodTo: '2026-11-23',
+      note: 'First line\nSecond line',
+    });
+    const body = await saved.created.text();
+    assert.equal(saved.created.status, 303, body);
+    const detail = await (await fetch(new URL(saved.created.headers.get('location'), base), {
+      headers: { cookie: result.jar },
+    })).text();
+    assert.match(detail, /name="periodFrom"[^>]*value="2026-10-23"/);
+    assert.match(detail, /name="periodTo"[^>]*value="2026-11-23"/);
+    assert.match(detail, /name="periodText"[^>]*value="1 month"/);
+    assert.equal(/name="periodNone"[^>]*\bchecked\b/.test(detail), false);
+    assert.match(detail, /First line\nSecond line/);
+    const filePath = detail.match(/href="(\/actual\/[^"]+\/files\/[^"]+)"/)[1];
+    const file = await fetch(`${base}${filePath}`, { headers: { cookie: result.jar } });
+    assert.equal(file.status, 200);
+    assert.equal(file.headers.get('content-type'), 'application/pdf');
+    assert.equal(Buffer.compare(Buffer.from(await file.arrayBuffer()), PDF), 0);
+    const expenseId = new URL(saved.created.headers.get('location'), base).pathname.split('/')[2];
+    const printed = await (await fetch(`${base}/actual/${expenseId}/form`, { headers: { cookie: result.jar } })).text();
+    assert.match(printed, /1 month/);
+    assert.match(printed, /23 ตุลาคม 2569/);
+    assert.match(printed, /23 พฤศจิกายน 2569/);
+  });
+});
+
+test('ticking No service period saves one PDF with no dates', async () => {
+  const app = appWith();
+  await withServer(app, async (base) => {
+    const result = await signIn(base, 'allowed');
+    const page = await (await fetch(`${base}/actual/new`, { headers: { cookie: result.jar } })).text();
+    const saved = await postExpense(base, result.jar, page, {
+      periodNone: 'on',
+      periodText: '',
+      periodFrom: '',
+      periodTo: '',
+    });
+    const body = await saved.created.text();
+    assert.equal(saved.created.status, 303, body);
+    const detail = await (await fetch(new URL(saved.created.headers.get('location'), base), {
+      headers: { cookie: result.jar },
+    })).text();
+    assert.match(detail, /name="periodNone"[^>]*\bchecked\b/);
+    assert.match(detail, /name="periodFrom"[^>]*value=""/);
+    assert.match(detail, /name="periodTo"[^>]*value=""/);
+    assert.match(detail, /name="periodText"[^>]*value=""/);
+    const filePath = detail.match(/href="(\/actual\/[^"]+\/files\/[^"]+)"/)[1];
+    const file = await fetch(`${base}${filePath}`, { headers: { cookie: result.jar } });
+    assert.equal(file.status, 200);
+    assert.equal(file.headers.get('content-type'), 'application/pdf');
+    assert.equal(Buffer.compare(Buffer.from(await file.arrayBuffer()), PDF), 0);
+  });
+});
+
+test('the expense form constrains money fields and saves a foreign amount', async () => {
+  const app = appWith();
+  await withServer(app, async (base) => {
+    const result = await signIn(base, 'allowed');
+    const page = await (await fetch(`${base}/actual/new`, { headers: { cookie: result.jar } })).text();
+    const amountTag = page.match(/<input\b[^>]*\bname="amount"[^>]*>/)[0];
+    assert.match(amountTag, /inputmode="decimal"/);
+    assert.match(amountTag, /maxlength="15"/);
+    assert.match(amountTag, /pattern="\(\?:0\\\./);
+    const rateTag = page.match(/<input\b[^>]*\bname="foreignRate"[^>]*>/)[0];
+    assert.match(rateTag, /inputmode="decimal"/);
+    assert.match(rateTag, /maxlength="15"/);
+    assert.match(page, /<input\b[^>]*\bname="foreignAmount"[^>]*pattern="/);
+    assert.match(page, /<abbr class="req"[^>]*>\*<\/abbr>/);
+    assert.match(page, /At least 1 file is required/);
+    assert.match(page, /name="payer"[^>]*>/);
+    const thai = await (await fetch(`${base}/actual/new`, { headers: { cookie: `${result.jar}; bt_lang=th` } })).text();
+    assert.match(thai, /<h1>บันทึกรายจ่ายจริง<\/h1>/);
+    assert.match(thai, /บันทึกค่าใช้จ่าย/);
+    assert.equal(thai.includes('>Invoice<'), false);
+    assert.match(thai, /ใบแจ้งหนี้/);
+    assert.match(thai, /การเงิน/);
+    assert.match(thai, /ต้องแนบอย่างน้อย 1 ไฟล์/);
+
+    const rejected = await postExpense(base, result.jar, page, { amount: '-5abc99999999999999999' });
+    const rejectedText = await rejected.created.text();
+    assert.equal(rejected.created.status, 400, rejectedText);
+    assert.match(rejectedText, /Amount must be more than 0, with at most 2 decimals/);
+
+    const saved = await postExpense(base, result.jar, page, {
+      vatMode: 'foreign',
+      foreignCurrency: 'USD',
+      foreignAmount: '12.50',
+      foreignRate: '33.50',
+      receiptNo: 'INV-FX',
+    });
+    const body = await saved.created.text();
+    assert.equal(saved.created.status, 303, body);
+    const detail = await (await fetch(new URL(saved.created.headers.get('location'), base), {
+      headers: { cookie: result.jar },
+    })).text();
+    assert.match(detail, /name="foreignCurrency"[^>]*value="USD"/);
+    assert.match(detail, /name="foreignAmount"[^>]*value="12\.50"/);
+    assert.match(detail, /name="foreignRate"[^>]*value="33\.50"/);
+    const filePath = detail.match(/href="(\/actual\/[^"]+\/files\/[^"]+)"/)[1];
+    const file = await fetch(`${base}${filePath}`, { headers: { cookie: result.jar } });
+    assert.equal(file.headers.get('content-type'), 'application/pdf');
   });
 });
 

@@ -145,7 +145,7 @@ test('production schema shape accepts an fx rate with more than two decimal plac
     email: 'investor@example.com',
     name: 'Example Investor',
   });
-  assert.match(html, /1 &lt;base&gt; = 1\.23456 &lt;quote&gt; · &lt;source&gt; · &lt;updatedDisplay&gt;/);
+  assert.match(html, /1 &lt;base&gt; = 1\.23456 &lt;quote&gt; · Source: &lt;source&gt; · &lt;updatedDisplay&gt;/);
   assert.equal(html.includes('1.23 &lt;quote&gt;'), false);
   assert.match(html, />0\.00</);
 });
