@@ -341,3 +341,58 @@ test('example months project a running balance from opening capital', () => {
   assert.equal(months[1].closingCents, 80000000n);
   assert.equal(months[2].closingCents, 68000000n);
 });
+
+test('signing in from a deep link returns to that page, and only to same-site paths', async () => {
+  const { app } = appWith();
+  await withServer(app, async (base) => {
+    const deep = await fetch(`${base}/actual?saved=1`, { redirect: 'manual' });
+    assert.equal(deep.headers.get('location'), `/login?next=${encodeURIComponent('/actual?saved=1')}`);
+
+    const login = await (await fetch(`${base}${deep.headers.get('location')}`)).text();
+    assert.match(login, /href="\/auth\/google\?next=%2Factual%3Fsaved%3D1"/);
+    assert.match(login, /href="\/lang\/th\?next=%2Flogin%3Fnext%3D%252Factual%253Fsaved%253D1"/);
+
+    const start = await fetch(`${base}/auth/google?next=${encodeURIComponent('/actual?saved=1')}`, { redirect: 'manual' });
+    const jar = mergeCookies('', start);
+    const state = new URL(start.headers.get('location')).searchParams.get('state');
+    const callback = await fetch(`${base}/auth/google/callback?code=allowed&state=${state}`, { redirect: 'manual', headers: { cookie: jar } });
+    assert.equal(callback.headers.get('location'), '/actual?saved=1');
+
+    const offsite = await fetch(`${base}/auth/google?next=${encodeURIComponent('//evil.example/')}`, { redirect: 'manual' });
+    const offJar = mergeCookies('', offsite);
+    const offState = new URL(offsite.headers.get('location')).searchParams.get('state');
+    const offCallback = await fetch(`${base}/auth/google/callback?code=allowed&state=${offState}`, { redirect: 'manual', headers: { cookie: offJar } });
+    assert.equal(offCallback.headers.get('location'), '/');
+
+    const signedIn = await fetch(`${base}/login?next=${encodeURIComponent('/forecast')}`, { redirect: 'manual', headers: { cookie: mergeCookies(jar, callback) } });
+    assert.equal(signedIn.headers.get('location'), '/forecast');
+
+    const home = await fetch(`${base}/`, { redirect: 'manual' });
+    assert.equal(home.headers.get('location'), '/login');
+  });
+});
+
+test('sign out from a tab opened before the last sign-in asks again instead of failing', async () => {
+  const { app } = appWith();
+  await withServer(app, async (base) => {
+    const first = await signIn(base, 'allowed');
+    const oldCsrf = csrfFrom(await (await fetch(`${base}/`, { headers: { cookie: first.jar } })).text());
+    const second = await signIn(base, 'allowed');
+    const logout = (csrf) => fetch(`${base}/auth/logout`, {
+      method: 'POST',
+      redirect: 'manual',
+      headers: { cookie: second.jar, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ csrf }),
+    });
+
+    const stale = await logout(oldCsrf);
+    assert.equal(stale.status, 403);
+    const html = await stale.text();
+    assert.match(html, /Sign out investor@example\.com\?/);
+    assert.equal(mergeCookies(second.jar, stale).includes('bt_session='), true);
+
+    const retried = await logout(csrfFrom(html));
+    assert.equal(retried.status, 302);
+    assert.equal(mergeCookies(second.jar, retried).includes('bt_session='), false);
+  });
+});

@@ -111,12 +111,13 @@ export function createApp(options = {}) {
   }));
 
   app.get('/login', (req, res) => {
+    const next = safeNext(req.query.next);
     if (readSession(req)) {
-      res.redirect('/');
+      res.redirect(next);
       return;
     }
     const code = req.query.error === 'state' || req.query.error === 'auth' ? req.query.error : '';
-    res.type('html').send(loginPage({ error: code, lang: langOf(req) }));
+    res.type('html').send(loginPage({ error: code, lang: langOf(req), next }));
   });
 
   // EN | TH switch. Works signed in or out; only same-site paths are followed.
@@ -149,6 +150,7 @@ export function createApp(options = {}) {
         state: begun.state,
         nonce: begun.nonce,
         codeVerifier: begun.codeVerifier,
+        next: safeNext(req.query.next),
       }, config.sessionSecret);
       res.cookie(OAUTH_COOKIE, token, cookieOptions(config, OAUTH_MS));
       res.redirect(target.href);
@@ -199,7 +201,7 @@ export function createApp(options = {}) {
         csrf: newCsrfToken(),
       }, config.sessionSecret);
       res.cookie(SESSION_COOKIE, token, cookieOptions(config, SESSION_MS));
-      res.redirect('/');
+      res.redirect(safeNext(txn.next));
     } catch (error) {
       console.error(`oauth callback failed: ${safeError(error, secrets())}`);
       fail('auth');
@@ -212,7 +214,7 @@ export function createApp(options = {}) {
       res.redirect('/login');
       return;
     }
-    res.type('html').send(logoutConfirmPage({ session }));
+    res.type('html').send(logoutConfirmPage({ session: { ...session, lang: langOf(req), path: req.originalUrl } }));
   });
 
   app.post('/auth/logout', (req, res) => {
@@ -221,8 +223,10 @@ export function createApp(options = {}) {
       res.redirect('/login');
       return;
     }
+    // A tab opened before the last sign-in holds an old token. Ask again with the current one
+    // instead of failing, so Sign out always has a way through.
     if (!csrfOk(req, session)) {
-      rejectCsrf(res, session);
+      res.status(403).type('html').send(logoutConfirmPage({ session: { ...session, lang: langOf(req), path: '/auth/logout' } }));
       return;
     }
     res.clearCookie(SESSION_COOKIE, clearCookieOptions(config));
@@ -856,7 +860,9 @@ export function createApp(options = {}) {
       res.status(401).json({ error: 'unauthorized' });
       return null;
     }
-    res.redirect('/login');
+    // Bring the visitor back to the page they opened. A POST cannot be replayed, so it starts over.
+    const back = req.method === 'GET' && req.originalUrl !== '/' ? safeNext(req.originalUrl) : '/';
+    res.redirect(back === '/' ? '/login' : `/login?next=${encodeURIComponent(back)}`);
     return null;
   }
 
