@@ -9,6 +9,7 @@ const render = fs.readFileSync(path.join(root, 'render.yaml'), 'utf8');
 const clientFiles = [
   'public/dashboard/dashboard.js',
   'public/app/print.js',
+  'public/app/manage.js',
   'public/app/manage.css',
   'public/app/print.css',
   'public/login/login.css',

@@ -45,6 +45,7 @@ const appDir = path.dirname(fileURLToPath(import.meta.url));
 const RECEIPT_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png']);
 const APP_ASSETS = {
   'manage.css': 'text/css; charset=utf-8',
+  'manage.js': 'application/javascript; charset=utf-8',
   'print.css': 'text/css; charset=utf-8',
   'print.js': 'application/javascript; charset=utf-8',
 };
