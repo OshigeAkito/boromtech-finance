@@ -255,6 +255,8 @@ test('planned expense labels name the repeat choices in English and Thai', () =>
   assert.match(english, /Quarterly/);
   assert.match(english, /Yearly/);
   assert.match(english, /Number of times/);
+  assert.match(english, /title="Enter a whole number from 1 to 36, such as 5 or 05\."/);
+  assert.match(english, /for="f-group"><span>Group code <abbr class="req"[^>]*>\*<\/abbr><\/span><input[^>]*name="group"[^>]*><p class="hint">/);
   assert.match(english, /<abbr class="req"/);
   const thai = itemFormPage({ session: { ...session, lang: 'th' }, forecast: example, csrf: 'token' });
   assert.match(thai, /ทำซ้ำรายการนี้/);
@@ -262,6 +264,9 @@ test('planned expense labels name the repeat choices in English and Thai', () =>
   assert.match(thai, /รายไตรมาส/);
   assert.match(thai, /รายปี/);
   assert.match(thai, /จำนวนครั้ง/);
+  assert.match(thai, /title="ระบุจำนวนเต็มตั้งแต่ 1 ถึง 36 เช่น 5 หรือ 05"/);
+  assert.match(thai, /<option value="2026-01" selected>มกราคม 2569<\/option>/);
+  assert.equal(thai.includes('name="monthKey" type="month"'), false);
   const empty = plannedPage({
     session: { ...session, lang: 'th' },
     forecast: { ...example, months: [] },
@@ -270,4 +275,77 @@ test('planned expense labels name the repeat choices in English and Thai', () =>
   assert.match(empty, /เพิ่มเดือน/);
   assert.match(empty, /ยังไม่มีรายจ่ายประมาณการ/);
   assert.equal(empty.includes('เพิ่มเดือนในหน้ารายรับ'), false);
+});
+
+test('a duplicate month stays on the page that submitted it', async () => {
+  const app = appWith();
+  await withServer(app, async (base) => {
+    const { jar } = await signIn(base, 'allowed');
+    const csrf = csrfFrom(await (await fetch(`${base}/forecast`, { headers: { cookie: jar } })).text());
+    const onForecast = await postForm(base, jar, '/forecast/months', {
+      csrf, returnTo: 'forecast', key: '2026-01', revenue: '0.00',
+    });
+    assert.equal(onForecast.status, 409);
+    const forecastPage = await onForecast.text();
+    assert.match(forecastPage, /<h1>Planned expenses<\/h1>/);
+    assert.match(forecastPage, /already in the forecast/);
+    assert.equal(forecastPage.includes('<h1>Already exists'), false);
+    const onIncome = await postForm(base, jar, '/forecast/months', { csrf, key: '2026-01', revenue: '1.00' });
+    assert.equal(onIncome.status, 409);
+    const incomePage = await onIncome.text();
+    assert.match(incomePage, /<h1>Income<\/h1>/);
+    assert.match(incomePage, /already in the forecast/);
+    assert.equal(incomePage.includes('<h1>Already exists'), false);
+  });
+});
+
+test('repeating with a leading zero saves that many rows, and a replay does not duplicate them', async () => {
+  const app = appWith();
+  await withServer(app, async (base) => {
+    const { jar } = await signIn(base, 'allowed');
+    const csrf = csrfFrom(await (await fetch(`${base}/forecast`, { headers: { cookie: jar } })).text());
+    const once = 'repeat-token-0001';
+    const fields = {
+      csrf,
+      once,
+      monthKey: '2026-01',
+      ...itemFields,
+      name: 'Synthetic counted row',
+      repeat: 'on',
+      frequency: 'quarterly',
+      repeatCount: '02',
+    };
+    const first = await postForm(base, jar, '/forecast/items', fields);
+    assert.equal(first.status, 303);
+    const again = await postForm(base, jar, '/forecast/items', fields);
+    assert.equal(again.status, 409);
+    assert.match(await again.text(), /already submitted/);
+    const data = (await (await fetch(`${base}/api/forecast`, { headers: { cookie: jar } })).json()).forecast;
+    const copies = data.months.flatMap((month) => month.items.filter((item) => item.name === 'Synthetic counted row'));
+    assert.equal(copies.length, 2);
+    assert.deepEqual(
+      data.months.filter((month) => month.items.some((item) => item.name === 'Synthetic counted row')).map((month) => month.key),
+      ['2026-01', '2026-04'],
+    );
+  });
+});
+
+test('a failed memory-store series does not leave the months it started', async () => {
+  const store = createMemoryStore(example);
+  const before = (await store.loadForecast()).months.map((month) => month.key);
+  store.createItem = async () => {
+    throw Object.assign(new Error('STORE'), { code: 'STORE' });
+  };
+  await assert.rejects(() => store.createPlannedSeries({
+    monthKeys: ['2026-10', '2026-11'],
+    group: 'tools',
+    groupName: 'Tools',
+    name: 'Broken series',
+    amount: '1.00',
+    usd: null,
+    assumed: false,
+    note: '',
+  }));
+  const after = (await store.loadForecast()).months.map((month) => month.key);
+  assert.deepEqual(after, before);
 });

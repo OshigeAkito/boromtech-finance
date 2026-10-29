@@ -54,7 +54,7 @@ function actual(spentOn, amount, extra = {}) {
   };
 }
 
-test('actuals are grouped by payment month and replace planned spend in the balance', () => {
+test('include plan uses the larger of actual and planned, and the totals add up', () => {
   const summary = buildDashboardSummary(forecast([
     month('2026-01', [item('200.00')]),
     month('2026-02', [item('80.00')]),
@@ -64,18 +64,42 @@ test('actuals are grouped by payment month and replace planned spend in the bala
   ]);
   assert.deepEqual(summary.months.map((row) => row.month.key), ['2026-01', '2026-02', '2026-03']);
   assert.equal(summary.months[0].usesActual, true);
+  assert.equal(summary.months[0].hasPlan, true);
   assert.equal(summary.months[0].actualCents, 5000n);
   assert.equal(summary.months[0].plannedCents, 20000n);
-  assert.equal(summary.months[0].closingCents, 95000n);
+  assert.equal(summary.months[0].spendCents, 20000n);
+  assert.equal(summary.months[0].closingCents, 80000n);
   assert.equal(summary.months[1].usesActual, false);
   assert.equal(summary.months[1].spendCents, 8000n);
-  assert.equal(summary.months[1].closingCents, 87000n);
+  assert.equal(summary.months[1].closingCents, 72000n);
+  assert.equal(summary.months[2].hasPlan, false);
   assert.equal(summary.months[2].plannedCents, 0n);
   assert.equal(summary.months[2].actualCents, 1000n);
-  assert.equal(summary.months[2].closingCents, 86000n);
-  assert.equal(summary.endingCents, 86000n);
+  assert.equal(summary.months[2].spendCents, 1000n);
+  assert.equal(summary.months[2].closingCents, 71000n);
+  assert.equal(summary.endingCents, 71000n);
+  assert.equal(summary.openingCents + summary.totalRevenueCents - summary.totalOutflowCents, summary.endingCents);
   assert.equal(summary.totalActualCents, 6000n);
   assert.equal(summary.totalPlannedCents, 28000n);
+  assert.equal(summary.totalOutflowCents, 29000n);
+});
+
+test('actual only ignores the plan, including months with no actual', () => {
+  const summary = buildDashboardSummary(forecast([
+    month('2026-01', [item('200.00')]),
+    month('2026-02', [item('80.00')]),
+  ]), [
+    actual('2026-01-15', '50.00'),
+  ], 'actual');
+  assert.equal(summary.mode, 'actual');
+  assert.equal(summary.months[0].spendCents, 5000n);
+  assert.equal(summary.months[0].closingCents, 95000n);
+  assert.equal(summary.months[1].spendCents, 0n);
+  assert.equal(summary.months[1].plannedCents, 8000n);
+  assert.equal(summary.months[1].closingCents, 95000n);
+  assert.equal(summary.endingCents, 95000n);
+  assert.equal(summary.openingCents + summary.totalRevenueCents - summary.totalOutflowCents, summary.endingCents);
+  assert.notEqual(summary.totalOutflowCents, summary.totalPlannedCents + summary.totalActualCents);
 });
 
 test('with no forecast months an actual still reduces opening capital', () => {
@@ -103,7 +127,12 @@ test('dashboard labels name actual and planned in English and Thai', () => {
   });
   assert.match(english, /Actual spent/);
   assert.match(english, /Actual and planned by month/);
+  assert.match(english, /Include plan/);
+  assert.match(english, /Actual only/);
+  assert.match(english, /href="\/\?view=actual"/);
+  assert.match(english, /larger of actual spending and the plan/);
   assert.match(english, /grouped by the payment date/);
+  assert.match(english, />–</);
   assert.match(english, />Oct 2026</);
   assert.match(english, /No forecast months/);
   assert.match(english, /100\.00/);
@@ -118,6 +147,8 @@ test('dashboard labels name actual and planned in English and Thai', () => {
   });
   assert.match(thai, /จ่ายจริง/);
   assert.match(thai, /ประมาณการ/);
+  assert.match(thai, /รวมแผน/);
+  assert.match(thai, /เฉพาะยอดจริง/);
   assert.match(thai, /ตามเดือนของวันที่จ่าย/);
   assert.match(thai, />ต\.ค\. 69</);
 });
@@ -170,6 +201,32 @@ test('the dashboard route shows an actual when the forecast has no months', asyn
     assert.equal(html.includes('Nov 2026'), false);
     assert.equal(html.includes('999.00'), false);
   });
+});
+
+test('a tiny outflow does not show an absurd runway', () => {
+  const html = dashboardPage({
+    forecast: forecast([month('2026-01', [item('0.01')])]),
+    actuals: [],
+    example: false,
+    email: 'investor@example.com',
+    name: 'Example',
+  });
+  assert.match(html, /120\+ months/);
+  assert.equal(html.includes('9999'), false);
+});
+
+test('the dashboard pages for both modes use the matching ending', () => {
+  const data = forecast([month('2026-01', [item('200.00')])]);
+  const expenses = [actual('2026-01-15', '50.00')];
+  const shared = { forecast: data, actuals: expenses, example: false, email: 'investor@example.com', name: 'Example' };
+  const plan = dashboardPage({ ...shared, view: 'plan' });
+  const actualOnly = dashboardPage({ ...shared, view: 'actual' });
+  assert.match(plan, /aria-current="true">Include plan/);
+  assert.match(plan, /800\.00/);
+  assert.match(actualOnly, /aria-current="true">Actual only/);
+  assert.match(actualOnly, /950\.00/);
+  assert.match(actualOnly, /Planned amounts are left out, including future months/);
+  assert.equal(plan.includes('250.00'), false);
 });
 
 test('a missing global exchange rate does not stop the forecast from loading', () => {
