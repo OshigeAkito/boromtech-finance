@@ -349,7 +349,15 @@ export function createApp(options = {}) {
       return;
     }
     try {
-      await store.saveSettings(parsed.value);
+      // The form no longer edits the exchange rate. The database save still
+      // requires the existing fx fields, so they are copied back unchanged.
+      const forecast = await readForecast(req, res, session);
+      if (forecast === undefined) return;
+      if (!forecast?.fx?.rate) {
+        sendStoreError(res, session, null);
+        return;
+      }
+      await store.saveSettings({ ...parsed.value, fx: forecast.fx });
       res.redirect(303, '/capital?saved=1');
     } catch (error) {
       sendStoreError(res, session, error);

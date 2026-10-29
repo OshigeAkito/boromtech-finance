@@ -190,8 +190,8 @@ test('a signed-in user can open a forecast whose fx rate has five decimal places
     assert.equal(home.status, 200);
     const html = await home.text();
     assert.equal(html.includes('could not be read'), false);
-    assert.match(html, /1 USD = 1\.23456 THB/);
-    assert.equal(html.includes('1.23 THB'), false);
+    assert.equal(html.includes('1 USD ='), false);
+    assert.equal(html.includes('1.23456'), false);
     const api = await fetch(`${base}/api/forecast`, { headers: { cookie: result.jar } });
     assert.equal(api.status, 200);
     const body = await api.json();

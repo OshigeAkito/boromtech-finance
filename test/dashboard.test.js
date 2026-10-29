@@ -204,7 +204,8 @@ test('example dashboard HTML has the chart, expandable table, group totals, and 
   const groups = html.slice(html.indexOf('class="groups"'));
   assert.match(groups, /<tr class="total">[\s\S]*?370,000\.00/);
 
-  assert.match(html, /1 USD = 30\.00 THB · Source: อัตราสมมติสำหรับไฟล์ตัวอย่าง · 1 Jan 2026/);
+  assert.equal(html.includes('class="fx-note"'), false);
+  assert.equal(html.includes('1 USD ='), false);
   for (const note of [...example.assumptions, ...example.notYetIncluded]) {
     assert.equal(html.includes(note), true);
   }
@@ -237,7 +238,7 @@ test('the month count in the group heading follows months.length', () => {
   assert.match(html, /<th scope="row">once<\/th>/);
   assert.match(html, /Income: none yet/);
   assert.equal(html.includes('class="example-banner"'), false);
-  assert.match(html, /1 USD = 30\.50 THB · Source: แหล่งตัวอย่าง · 1 Jan 2026/);
+  assert.equal(html.includes('1 USD ='), false);
   // A key that is not a calendar month keeps its stored label.
   assert.match(html, />เม\.ย\.</);
 });
@@ -266,7 +267,8 @@ test('an empty forecast does not draw a 0–1 spending chart, and notes keep Eng
   const spend = html.slice(html.indexOf('id="spend-heading"'), html.indexOf('id="summary-heading"'));
   assert.match(spend, /No planned expenses to chart yet/);
   assert.equal(spend.includes('<svg'), false);
-  assert.match(html, /Source: ระดมทุน/);
+  assert.equal(html.includes('ระดมทุน'), false);
+  assert.equal(html.includes('class="fx-note"'), false);
   assert.match(html, /Balance: 1/);
   assert.match(html, /<h3>Assumptions<\/h3>/);
   const thai = dashboardPage({
@@ -277,7 +279,8 @@ test('an empty forecast does not draw a 0–1 spending chart, and notes keep Eng
     lang: 'th',
   });
   assert.match(thai, /ยังไม่มีรายจ่ายประมาณการให้แสดงบนกราฟ/);
-  assert.match(thai, /แหล่งที่มา:/);
+  assert.equal(thai.includes('แหล่งที่มา'), false);
+  assert.equal(thai.includes('1 USD ='), false);
 });
 
 test('dashboard script only toggles rows and contains no figures', () => {
