@@ -298,21 +298,26 @@ export function createApp(options = {}) {
   app.get('/', async (req, res) => {
     const session = requireUser(req, res);
     if (!session) return;
-    const forecast = await readForecast(req, res, session);
-    if (forecast === undefined) return;
-    if (!forecast) {
-      res.type('html').send(emptyDashboardPage({ session }));
-      return;
+    if (!(await ensureStore(req, res, session))) return;
+    try {
+      const [forecast, actuals] = await Promise.all([store.loadForecast(), store.listActual()]);
+      if (!forecast) {
+        res.type('html').send(emptyDashboardPage({ session }));
+        return;
+      }
+      res.type('html').send(dashboardPage({
+        forecast,
+        actuals: actuals || [],
+        example: false,
+        email: session.email,
+        name: session.name,
+        csrf: session.csrf,
+        lang: session.lang,
+        path: session.path,
+      }));
+    } catch (error) {
+      sendStoreError(res, session, error);
     }
-    res.type('html').send(dashboardPage({
-      forecast,
-      example: false,
-      email: session.email,
-      name: session.name,
-      csrf: session.csrf,
-      lang: session.lang,
-      path: session.path,
-    }));
   });
 
   app.get('/capital', async (req, res) => {
