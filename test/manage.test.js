@@ -201,11 +201,12 @@ test('signed-in edits change the dashboard on the next load and reject bad input
     const still = await (await fetch(`${base}/api/forecast`, { headers: { cookie: result.jar } })).json();
     assert.equal(still.forecast.company, example.company);
 
-    const invalid = await postForm(base, result.jar, '/capital', settingsFields(csrf, { fxRate: '33.787050009' }));
+    const invalid = await postForm(base, result.jar, '/capital', settingsFields(csrf, { registeredCapital: 'nope' }));
     assert.equal(invalid.status, 400);
-    assert.match(await invalid.text(), /Exchange rate must be more than 0/);
+    assert.match(await invalid.text(), /Registered capital must be zero or more/);
 
     // The old /settings address still saves, for forms left open in a browser.
+    // A posted exchange rate is ignored; the stored rate stays as it was.
     const saved = await postForm(base, result.jar, '/settings', settingsFields(csrf, {
       company: 'บริษัท ทดสอบแก้ไข จำกัด',
       fxRate: '33.78705',
@@ -214,7 +215,7 @@ test('signed-in edits change the dashboard on the next load and reject bad input
     assert.equal(saved.headers.get('location'), '/capital?saved=1');
     const after = await (await fetch(`${base}/`, { headers: { cookie: result.jar } })).text();
     assert.equal(after.includes('บริษัท ทดสอบแก้ไข จำกัด'), true);
-    assert.match(after, /1 USD = 33\.78705 THB/);
+    assert.equal(after.includes('1 USD ='), false);
 
     const forecast = await (await fetch(`${base}/api/forecast`, { headers: { cookie: result.jar } })).json();
     const month = forecast.forecast.months[0];
@@ -324,22 +325,19 @@ test('four tabs: income holds the months, expenses has actual and planned, capit
 
     const capital = await (await get('/capital')).text();
     assert.match(capital, /<a href="\/capital" aria-current="page">Capital<\/a>/);
-    assert.match(capital, /THB per 1 USD/);
+    assert.equal(capital.includes('THB per 1 USD'), false);
+    assert.equal(capital.includes('name="fxRate"'), false);
     assert.equal(capital.includes('name="openingShare"'), false);
     assert.equal(capital.includes('name="fxUpdatedDisplay"'), false);
 
-    // Only the fields on the page: share, source and the rate's display date are worked out.
+    // Share is worked out from the two amounts. A posted rate does not replace the stored one.
     const saved = await postForm(base, result.jar, '/capital', {
       csrf,
       company: example.company,
       currency: 'THB',
       registeredCapital: '500000',
       openingAmount: '125000',
-      fxBase: 'USD',
-      fxQuote: 'THB',
-      fxRate: '33.78705',
-      fxUpdatedAt: '2026-10-27',
-      fxSource: '',
+      fxRate: '99.99',
       documentPrefix: 'EXP',
       balanceFormula: '',
       assumptions: '',
@@ -348,11 +346,12 @@ test('four tabs: income holds the months, expenses has actual and planned, capit
     assert.equal(saved.status, 303);
     const after = (await (await get('/api/forecast')).json()).forecast;
     assert.equal(String(after.openingCapital.sharePercent).replace(/\.0+$/, ''), '25');
-    assert.equal(after.fx.source, 'Entered manually');
-    assert.equal(after.fx.updatedDisplay, '27 Oct 2026');
+    assert.equal(after.fx.rate, example.fx.rate);
+    assert.equal(after.fx.source, example.fx.source);
     assert.equal(after.openingCapital.assumed, false);
     const dashboard = await (await get('/')).text();
-    assert.match(dashboard, /1 USD = 33\.78705 THB · Source: Entered manually · 27 Oct 2026/);
+    assert.equal(dashboard.includes('1 USD ='), false);
+    assert.equal(dashboard.includes('class="fx-note"'), false);
 
     const tooMuch = await postForm(base, result.jar, '/capital', {
       csrf,
@@ -404,7 +403,8 @@ test('the EN | TH switch remembers the language and only returns to same-site pa
     assert.match(home, /href="\/lang\/en\?next=%2F"/);
     assert.match(await get('/income'), /<th scope="row">มกราคม 2569<\/th>/);
     assert.match(await get('/actual'), /<a href="\/actual" aria-current="page">จ่ายจริง<\/a>/);
-    assert.match(await get('/capital'), /บาทต่อ 1 USD/);
+    assert.match(await get('/capital'), /ทุนจดทะเบียน/);
+    assert.equal((await get('/capital')).includes('บาทต่อ 1 USD'), false);
 
     // Validation messages follow the language too.
     const csrf = csrfFrom(home);
