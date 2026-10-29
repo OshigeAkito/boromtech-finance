@@ -96,6 +96,7 @@ node scripts/check-forecast.js /path/outside/the/repo/forecast.json
 2. รอจนโปรเจกต์พร้อม แล้วเปิด **SQL Editor**
 3. เปิดไฟล์ `supabase/migrations/20261028120000_init.sql` จากรีโปนี้ คัดลอกทั้งหมด วางในช่อง SQL แล้วกด **Run**
    แล้วทำซ้ำกับไฟล์ `supabase/migrations/20261028150000_forecast_item_usd.sql` (เพิ่มคอลัมน์ `usd` ให้รายจ่ายประมาณการ) ถ้าเคยรันไฟล์ init ไปแล้ว ให้รันเฉพาะไฟล์นี้ รันซ้ำได้ ต้องรันก่อน deploy โค้ดเวอร์ชันนี้
+   แล้วรัน `supabase/migrations/20261029120000_create_planned_series.sql` (บันทึกรายจ่ายทำซ้ำในครั้งเดียว) และ `supabase/migrations/20261030120000_multiline_notes.sql` (ให้หมายเหตุขึ้นบรรทัดใหม่ได้) ตามลำดับ ทั้งสองไฟล์รันซ้ำได้
 4. ถ้ามีข้อความเตือนเรื่องถัง `receipts` ให้สร้างเอง: ไปที่ **Storage → New bucket** ตั้งชื่อ `receipts` ปิด **Public bucket** จำกัดชนิดไฟล์เป็น PDF, JPEG, PNG และขนาด 5 MB ถ้าหน้าเว็บมีช่องนั้น
 5. อย่ากดเพิ่ม Policy ทั้งในตารางและใน Storage ถังต้องเป็นส่วนตัว
 6. เปิด **Project Settings → API**

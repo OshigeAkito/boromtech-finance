@@ -463,6 +463,7 @@ export function createApp(options = {}) {
         forecast,
         csrf: session.csrf,
         errors: parsed.errors,
+        editing: { id: req.params.id, revenue: typeof req.body?.revenue === 'string' ? req.body.revenue : '' },
       }));
       return;
     }
@@ -604,14 +605,7 @@ export function createApp(options = {}) {
     const session = requireUser(req, res);
     if (!session) return;
     if (!(await ensureStore(req, res, session))) return;
-    let prefix = 'EXP';
-    try {
-      const forecast = await store.loadForecast();
-      if (forecast?.documentPrefix) prefix = forecast.documentPrefix;
-    } catch {
-      prefix = 'EXP';
-    }
-    res.type('html').send(actualFormPage({ session, csrf: session.csrf, prefix }));
+    res.type('html').send(actualFormPage({ session, csrf: session.csrf, prefix: await documentPrefix() }));
   });
 
   app.post('/actual', async (req, res) => {
@@ -645,6 +639,7 @@ export function createApp(options = {}) {
         csrf: session.csrf,
         errors,
         values: uploaded.fields,
+        prefix: await documentPrefix(),
       }));
       return;
     }
@@ -835,6 +830,16 @@ export function createApp(options = {}) {
 
   function secrets() {
     return [config.env.GOOGLE_CLIENT_SECRET, config.supabaseServiceRoleKey];
+  }
+
+  // The prefix only shapes the example number on the form, so a failed read falls back to EXP.
+  async function documentPrefix() {
+    try {
+      const forecast = await store.loadForecast();
+      return forecast?.documentPrefix || 'EXP';
+    } catch {
+      return 'EXP';
+    }
   }
 
   function readSession(req) {
