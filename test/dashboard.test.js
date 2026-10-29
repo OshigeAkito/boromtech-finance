@@ -167,9 +167,10 @@ test('example dashboard HTML has the chart, expandable table, group totals, and 
   // Balance and spending charts live on separate scales, with hover text on every mark.
   assert.match(html, /data-tip="Opening capital: 1,000,000\.00 THB"/);
   assert.match(html, /data-tip="Jan 2026 · Balance: 870,000\.00 THB"/);
-  assert.match(html, /data-tip="Jan 2026 · Expenses 130,000\.00 THB — /);
+  assert.match(html, /data-tip="Jan 2026 · Planned 130,000\.00 THB · Actual – THB"/);
   assert.equal(html.split('class="hit"').length - 1, 3 + 1 + 3);
-  assert.match(html, /<span class="swatch" style="background:#2a78d6"><\/span>ค่าเช่าสำนักงานตัวอย่าง/);
+  assert.match(html, /<span class="swatch" style="background:#2a78d6"><\/span>Planned/);
+  assert.match(html, /<span class="swatch" style="background:#E56E3F"><\/span>Actual/);
   assert.match(html, /id="chart-tip" role="tooltip" hidden/);
   // Month names come from the 2026-01 style keys, in English.
   assert.match(html, />Jan 2026</);
@@ -177,7 +178,8 @@ test('example dashboard HTML has the chart, expandable table, group totals, and 
   assert.match(html, />Mar 2026</);
   assert.match(html, /January 2026 – March 2026 · 3 months/);
   assert.match(html, /<th class="num col-revenue" scope="col">Income<\/th>/);
-  assert.match(html, /<th class="num col-cash" scope="col">Expenses<\/th>/);
+  assert.match(html, /<th class="num col-cash" scope="col">Planned<\/th>/);
+  assert.match(html, /<th class="num col-actual" scope="col">Actual<\/th>/);
   assert.match(html, /<th class="num col-capital" scope="col">Month-end balance<\/th>/);
   assert.match(html, /id="expand-all">Expand all</);
   assert.match(html, /id="collapse-all">Collapse all</);
@@ -265,7 +267,10 @@ test('an empty forecast does not draw a 0–1 spending chart, and notes keep Eng
     lang: 'en',
   });
   const spend = html.slice(html.indexOf('id="spend-heading"'), html.indexOf('id="summary-heading"'));
-  assert.match(spend, /No planned expenses to chart yet/);
+  assert.match(spend, /No expenses to chart yet/);
+  assert.match(html, /No months to chart yet/);
+  assert.match(html, /No forecast months\. Actual expenses still appear by payment date/);
+  assert.match(html, /No actual expenses yet\. Months without one use the planned total/);
   assert.equal(spend.includes('<svg'), false);
   assert.equal(html.includes('ระดมทุน'), false);
   assert.equal(html.includes('class="fx-note"'), false);
@@ -278,7 +283,10 @@ test('an empty forecast does not draw a 0–1 spending chart, and notes keep Eng
     name: '',
     lang: 'th',
   });
-  assert.match(thai, /ยังไม่มีรายจ่ายประมาณการให้แสดงบนกราฟ/);
+  assert.match(thai, /ยังไม่มีรายจ่ายให้แสดงบนกราฟ/);
+  assert.match(thai, /ยังไม่มีเดือนให้แสดงบนกราฟ/);
+  assert.match(thai, /ยังไม่มีเดือนในประมาณการ รายจ่ายจริงยังแสดงตามเดือนของวันที่จ่าย/);
+  assert.match(thai, /ยังไม่มีรายจ่ายจริง เดือนที่ไม่มีรายจ่ายจริงใช้ยอดประมาณการ/);
   assert.equal(thai.includes('แหล่งที่มา'), false);
   assert.equal(thai.includes('1 USD ='), false);
 });
