@@ -204,7 +204,7 @@ test('example dashboard HTML has the chart, expandable table, group totals, and 
   const groups = html.slice(html.indexOf('class="groups"'));
   assert.match(groups, /<tr class="total">[\s\S]*?370,000\.00/);
 
-  assert.match(html, /1 USD = 30\.00 THB · อัตราสมมติสำหรับไฟล์ตัวอย่าง · 1 Jan 2026/);
+  assert.match(html, /1 USD = 30\.00 THB · Source: อัตราสมมติสำหรับไฟล์ตัวอย่าง · 1 Jan 2026/);
   for (const note of [...example.assumptions, ...example.notYetIncluded]) {
     assert.equal(html.includes(note), true);
   }
@@ -237,9 +237,47 @@ test('the month count in the group heading follows months.length', () => {
   assert.match(html, /<th scope="row">once<\/th>/);
   assert.match(html, /Income: none yet/);
   assert.equal(html.includes('class="example-banner"'), false);
-  assert.match(html, /1 USD = 30\.50 THB · แหล่งตัวอย่าง · 1 Jan 2026/);
+  assert.match(html, /1 USD = 30\.50 THB · Source: แหล่งตัวอย่าง · 1 Jan 2026/);
   // A key that is not a calendar month keeps its stored label.
   assert.match(html, />เม\.ย\.</);
+});
+
+test('an empty forecast does not draw a 0–1 spending chart, and notes keep English labels', () => {
+  const html = dashboardPage({
+    forecast: forecast({
+      months: [],
+      assumptions: [],
+      notYetIncluded: [],
+      balanceFormula: '1',
+      fx: {
+        base: 'USD',
+        quote: 'THB',
+        rate: '3.00',
+        source: 'ระดมทุน',
+        updatedAt: '2026-10-28',
+        updatedDisplay: '28 ตุลาคม 2569',
+      },
+    }),
+    example: false,
+    email: 'investor@example.com',
+    name: 'Example Person',
+    lang: 'en',
+  });
+  const spend = html.slice(html.indexOf('id="spend-heading"'), html.indexOf('id="summary-heading"'));
+  assert.match(spend, /No planned expenses to chart yet/);
+  assert.equal(spend.includes('<svg'), false);
+  assert.match(html, /Source: ระดมทุน/);
+  assert.match(html, /Balance: 1/);
+  assert.match(html, /<h3>Assumptions<\/h3>/);
+  const thai = dashboardPage({
+    forecast: forecast({ months: [] }),
+    example: false,
+    email: 'investor@example.com',
+    name: '',
+    lang: 'th',
+  });
+  assert.match(thai, /ยังไม่มีรายจ่ายประมาณการให้แสดงบนกราฟ/);
+  assert.match(thai, /แหล่งที่มา:/);
 });
 
 test('dashboard script only toggles rows and contains no figures', () => {

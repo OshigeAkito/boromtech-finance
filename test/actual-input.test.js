@@ -62,6 +62,51 @@ test('a blank length is filled from the dates and a typed length is kept', () =>
   assert.equal(days.value.periodText, '1 day');
 });
 
+test('amount, foreign amount, and rate reject letters, signs, extra decimals, and huge values', () => {
+  const badAmounts = ['-5abc99999999999999999', '-1', '0', '0.00', '1.234', '1000000000000.00', '1,000.00'];
+  for (const amount of badAmounts) {
+    const parsed = parseActual(expense({ periodNone: 'on', amount }));
+    assert.equal(parsed.ok, false, amount);
+    assert.equal(parsed.errors.some((error) => error.field === 'amount'), true, amount);
+  }
+  const ok = parseActual(expense({ periodNone: 'on', amount: '10.5' }));
+  assert.equal(ok.ok, true);
+  assert.equal(ok.value.amount, '10.50');
+
+  const foreign = parseActual(expense({
+    periodNone: 'on',
+    vatMode: 'foreign',
+    foreignCurrency: 'usd',
+    foreignAmount: '12.5',
+    foreignRate: '33.5',
+  }));
+  assert.equal(foreign.ok, true);
+  assert.equal(foreign.value.foreignCurrency, 'USD');
+  assert.equal(foreign.value.foreignAmount, '12.50');
+  assert.equal(foreign.value.foreignRate, '33.50');
+
+  const junkRate = parseActual(expense({
+    periodNone: 'on',
+    vatMode: 'foreign',
+    foreignCurrency: 'USD',
+    foreignAmount: '12.50',
+    foreignRate: 'nope',
+  }));
+  assert.equal(junkRate.ok, false);
+  assert.equal(junkRate.errors.some((error) => error.field === 'foreignRate'), true);
+  assert.equal(junkRate.errors.some((error) => error.field === 'foreignAmount'), false);
+
+  const hugeRate = parseActual(expense({
+    periodNone: 'on',
+    vatMode: 'foreign',
+    foreignCurrency: 'USD',
+    foreignAmount: '-4',
+    foreignRate: '1.123456789',
+  }));
+  assert.equal(hugeRate.errors.some((error) => error.field === 'foreignAmount'), true);
+  assert.equal(hugeRate.errors.some((error) => error.field === 'foreignRate'), true);
+});
+
 test('period and note errors name the field that failed', () => {
   const backwards = parseActual(expense({
     periodText: '',

@@ -298,6 +298,8 @@ test('four tabs: income holds the months, expenses has actual and planned, capit
     }
     assert.match(actual, /<a href="\/actual" aria-current="page">Actual<\/a>/);
     assert.match(planned, /<a href="\/forecast" aria-current="page">Planned<\/a>/);
+    assert.match(planned, /<h1>Planned expenses<\/h1>/);
+    assert.match(actual, /<h1>Expenses<\/h1>/);
     assert.match(planned, /January 2026/);
 
     const income = await (await get('/income')).text();
@@ -350,7 +352,7 @@ test('four tabs: income holds the months, expenses has actual and planned, capit
     assert.equal(after.fx.updatedDisplay, '27 Oct 2026');
     assert.equal(after.openingCapital.assumed, false);
     const dashboard = await (await get('/')).text();
-    assert.match(dashboard, /1 USD = 33\.78705 THB · Entered manually · 27 Oct 2026/);
+    assert.match(dashboard, /1 USD = 33\.78705 THB · Source: Entered manually · 27 Oct 2026/);
 
     const tooMuch = await postForm(base, result.jar, '/capital', {
       csrf,
@@ -692,6 +694,56 @@ test('ticking No service period saves one PDF with no dates', async () => {
     assert.equal(file.status, 200);
     assert.equal(file.headers.get('content-type'), 'application/pdf');
     assert.equal(Buffer.compare(Buffer.from(await file.arrayBuffer()), PDF), 0);
+  });
+});
+
+test('the expense form constrains money fields and saves a foreign amount', async () => {
+  const app = appWith();
+  await withServer(app, async (base) => {
+    const result = await signIn(base, 'allowed');
+    const page = await (await fetch(`${base}/actual/new`, { headers: { cookie: result.jar } })).text();
+    const amountTag = page.match(/<input\b[^>]*\bname="amount"[^>]*>/)[0];
+    assert.match(amountTag, /inputmode="decimal"/);
+    assert.match(amountTag, /maxlength="15"/);
+    assert.match(amountTag, /pattern="\(\?:0\\\./);
+    const rateTag = page.match(/<input\b[^>]*\bname="foreignRate"[^>]*>/)[0];
+    assert.match(rateTag, /inputmode="decimal"/);
+    assert.match(rateTag, /maxlength="15"/);
+    assert.match(page, /<input\b[^>]*\bname="foreignAmount"[^>]*pattern="/);
+    assert.match(page, /<abbr class="req"[^>]*>\*<\/abbr>/);
+    assert.match(page, /At least 1 file is required/);
+    assert.match(page, /name="payer"[^>]*>/);
+    const thai = await (await fetch(`${base}/actual/new`, { headers: { cookie: `${result.jar}; bt_lang=th` } })).text();
+    assert.match(thai, /<h1>บันทึกรายจ่ายจริง<\/h1>/);
+    assert.match(thai, /บันทึกค่าใช้จ่าย/);
+    assert.equal(thai.includes('>Invoice<'), false);
+    assert.match(thai, /ใบแจ้งหนี้/);
+    assert.match(thai, /การเงิน/);
+    assert.match(thai, /ต้องแนบอย่างน้อย 1 ไฟล์/);
+
+    const rejected = await postExpense(base, result.jar, page, { amount: '-5abc99999999999999999' });
+    const rejectedText = await rejected.created.text();
+    assert.equal(rejected.created.status, 400, rejectedText);
+    assert.match(rejectedText, /Amount must be more than 0, with at most 2 decimals/);
+
+    const saved = await postExpense(base, result.jar, page, {
+      vatMode: 'foreign',
+      foreignCurrency: 'USD',
+      foreignAmount: '12.50',
+      foreignRate: '33.50',
+      receiptNo: 'INV-FX',
+    });
+    const body = await saved.created.text();
+    assert.equal(saved.created.status, 303, body);
+    const detail = await (await fetch(new URL(saved.created.headers.get('location'), base), {
+      headers: { cookie: result.jar },
+    })).text();
+    assert.match(detail, /name="foreignCurrency"[^>]*value="USD"/);
+    assert.match(detail, /name="foreignAmount"[^>]*value="12\.50"/);
+    assert.match(detail, /name="foreignRate"[^>]*value="33\.50"/);
+    const filePath = detail.match(/href="(\/actual\/[^"]+\/files\/[^"]+)"/)[1];
+    const file = await fetch(`${base}${filePath}`, { headers: { cookie: result.jar } });
+    assert.equal(file.headers.get('content-type'), 'application/pdf');
   });
 });
 

@@ -163,16 +163,18 @@ a { color: var(--ink); }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 8px 16px;
   padding-top: 10px;
   padding-bottom: 6px;
 }
-.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); flex: 0 0 auto; }
 .brand-text { display: flex; align-items: baseline; gap: 10px; line-height: 1.1; }
 .brand-text strong { font-family: var(--font-latin); font-size: 1.3rem; font-weight: 800; letter-spacing: -.01em; color: var(--navy); }
 .brand-text sup { font-size: .5em; font-weight: 700; }
 .brand-text span { font-size: .74rem; font-weight: 700; color: var(--ink-3); letter-spacing: .08em; text-transform: uppercase; padding-left: 10px; border-left: 2px solid var(--accent); }
-.session { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.session { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 10px; min-width: 0; flex: 1 1 16rem; }
+.session-tools { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
 .avatar {
   width: 30px;
   height: 30px;
@@ -185,7 +187,7 @@ a { color: var(--ink); }
   font-weight: 800;
   font-size: .9rem;
 }
-.who { margin: 0; color: var(--ink-3); font-size: .9rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 420px; }
+.who { margin: 0; color: var(--ink-3); font-size: .9rem; min-width: 0; flex: 1 1 8rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .who strong { color: var(--ink-2); font-weight: 600; }
 .lang-switch { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 999px; overflow: hidden; flex: 0 0 auto; }
 .lang-switch a { padding: 4px 10px; font-size: .8rem; font-weight: 700; color: var(--ink-3); text-decoration: none; }
@@ -323,19 +325,45 @@ fieldset {
 }
 legend { font-weight: 800; padding: 0 6px; }
 .field { display: flex; flex-direction: column; gap: 4px; margin: 0 0 14px; font-weight: 600; min-width: 0; }
+.field > span { min-height: 2.75em; display: flex; align-items: flex-end; flex-wrap: wrap; gap: 0 4px; line-height: 1.3; }
+.req { color: var(--accent); text-decoration: none; font-weight: 800; }
 .field input, .field textarea, .field select {
   font: inherit;
   font-weight: 400;
-  padding: 9px 12px;
+  padding: 8px 12px;
   border: 1px solid var(--line-strong);
   border-radius: 10px;
   background: white;
   width: 100%;
-  min-height: 42px;
+  height: 45px;
+  min-height: 45px;
+  line-height: 1.2;
+}
+.field textarea { height: auto; min-height: 5.5rem; }
+.field input[type="checkbox"], .field input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  padding: 0;
 }
 .field input:hover, .field textarea:hover, .field select:hover { border-color: #aab2be; }
 .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--brand); }
-.field input[type="file"] { padding: 7px; background: var(--surface-2); }
+.field input[type="file"] {
+  padding: 8px 10px;
+  background: var(--surface-2);
+  line-height: 27px;
+}
+.field input[type="file"]::file-selector-button {
+  height: 28px;
+  margin-right: 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: white;
+  font: inherit;
+  font-size: .85rem;
+  padding: 0 10px;
+}
+.field > .hint { min-height: 1.15em; }
 .field:has(input:user-invalid) input { border-color: var(--danger); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .row-form { display: flex; gap: 8px; align-items: center; margin: 0; }
@@ -366,12 +394,34 @@ legend { font-weight: 800; padding: 0 6px; }
   cursor: pointer;
 }
 .choices .check:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); color: var(--navy); font-weight: 600; }
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0 14px; align-items: start; }
-.grid.two { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.grid, .grid.two, .grid.files {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 16px;
+  align-items: start;
+}
 .grid .wide { grid-column: 1 / -1; }
-.inline-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0 12px; align-items: end; }
-.inline-form .field { margin-bottom: 12px; }
-.inline-form button { margin-bottom: 12px; }
+.grid > label.field, .inline-form > label.field {
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: span 3;
+  gap: 0;
+  margin: 0 0 12px;
+  align-content: start;
+}
+.grid > label.field > span, .inline-form > label.field > span { padding-bottom: 4px; }
+.grid > label.field > .hint, .inline-form > label.field > .hint { margin-top: 4px; }
+.inline-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-rows: auto 45px auto;
+  column-gap: 12px;
+  align-items: start;
+}
+.inline-form > input[type="hidden"] { display: none; }
+.inline-form .field { margin-bottom: 0; }
+.inline-form > button { grid-column: 3; grid-row: 2; height: 45px; width: auto; align-self: stretch; }
+.choice-label { font-weight: 700; margin: 0 0 6px; }
 .reveal { display: none; }
 fieldset:has(.reveal-trigger:checked) .reveal { display: block; }
 fieldset:has(.reveal-hide:checked) .reveal-off { display: none; }
@@ -464,7 +514,8 @@ tr.total th, tr.total td { font-weight: 800; background: var(--surface-2); borde
 
 @media (max-width: 720px) {
   .appbar-inner, .nav-inner, main, .page-head { padding-left: 14px; padding-right: 14px; }
-  .who { display: none; }
+  .grid, .grid.two, .grid.files, .inline-form { grid-template-columns: minmax(0, 1fr); }
+  .inline-form > button { grid-column: 1; grid-row: auto; }
   .brand-text strong { font-size: 1.15rem; }
   .brand-text span { font-size: .68rem; padding-left: 8px; }
   .page-head { padding-top: 18px; }
