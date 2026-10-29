@@ -31,12 +31,6 @@ body {
   background: white;
   padding: 22px 26px 28px;
 }
-.draft {
-  margin: 0 0 12px;
-  color: #9f1239;
-  font-weight: 800;
-  text-align: center;
-}
 h1 { margin: 0; text-align: center; font-size: 1.45rem; }
 .sub, .company { margin: 4px 0; text-align: center; }
 .company { font-weight: 800; }
@@ -60,18 +54,35 @@ table.fields th {
   font-weight: 700;
 }
 .tick { font-weight: 700; }
-.aside, .mask { color: #9f1239; }
-.mask { font-weight: 700; }
 .checks { list-style: none; padding: 8px 4px; margin: 0; }
 .checks li { margin: 6px 0; }
 .cert { margin: 12px 0; }
+.sign-zone { break-inside: avoid; page-break-inside: avoid; }
 .signs {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 24px;
-  margin-top: 28px;
-  text-align: center;
+  margin-top: 36px;
 }
+/* label | line | role. The line column is the same width in both blocks so
+   lines, names and dates share one length and one baseline per row. */
+.sign {
+  display: grid;
+  grid-template-columns: max-content 46mm max-content;
+  column-gap: 8px;
+  row-gap: 14px;
+  align-items: end;
+  justify-content: center;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.sign-line {
+  display: block;
+  height: 1.2em;
+  border-bottom: 1px dotted #1a1a1a;
+}
+.sign-name { text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sign-name .sign-line { display: inline-block; width: 40mm; vertical-align: bottom; }
 .footer {
   margin: 28px 0 0;
   text-align: center;
@@ -83,9 +94,21 @@ table.fields th {
   body { background: white; }
   .no-print { display: none !important; }
   .sheet { margin: 0; max-width: none; padding: 0; }
+  /* Fit one expense on a single A4 sheet. */
+  body { font-size: 10.5pt; line-height: 1.35; }
+  h1 { font-size: 15pt; }
+  h2 { margin-top: 10px; font-size: 11pt; padding: 4px 8px; }
+  table.fields th, table.fields td { padding: 4px 6px; }
+  .checks { padding: 4px; }
+  .checks li { margin: 3px 0; }
+  .cert { margin: 8px 0; }
+  .signs { margin-top: 28px; }
+  .footer { margin-top: 20px; }
 }
 @media (max-width: 720px) {
   .sheet { padding: 12px; }
-  .signs { display: block; }
+  .signs { grid-template-columns: 1fr; gap: 32px; }
+  .sign { grid-template-columns: max-content minmax(0, 1fr) max-content; }
+  .sign-name .sign-line { width: 60%; }
   table.fields th { width: auto; }
 }

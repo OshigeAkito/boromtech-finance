@@ -763,7 +763,7 @@ export function createApp(options = {}) {
       } catch {
         company = '';
       }
-      res.type('html').send(advanceFormPage({ expense, company }));
+      res.type('html').send(advanceFormPage({ expense, company, from: req.query.from === 'edit' ? 'edit' : 'list' }));
     } catch (error) {
       sendStoreError(res, session, error);
     }

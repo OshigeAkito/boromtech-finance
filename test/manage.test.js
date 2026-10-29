@@ -527,8 +527,15 @@ test('actual expenses, receipts, and the reimbursement form stay on this server'
     assert.equal(swapped.status, 404);
 
     const expenseId = new URL(created.headers.get('location'), base).pathname.split('/')[2];
+    assert.match(list, new RegExp(`href="/actual/${expenseId}/form\\?from=list"`));
+    assert.match(detail, new RegExp(`href="/actual/${expenseId}/form\\?from=edit"`));
+    const back = async (query) => (await (await fetch(`${base}/actual/${expenseId}/form${query}`, { headers: { cookie: result.jar } })).text())
+      .match(/<div class="toolbar no-print">\s*<a href="([^"]+)">กลับ<\/a>/)[1];
+    assert.equal(await back('?from=list'), '/actual');
+    assert.equal(await back(''), '/actual');
+    assert.equal(await back('?from=edit'), `/actual/${expenseId}`);
+    assert.equal(await back('?from=https://evil.example'), '/actual');
     const printed = await (await fetch(`${base}/actual/${expenseId}/form`, { headers: { cookie: result.jar } })).text();
-    assert.match(printed, /TEMPLATE DRAFT/);
     assert.match(printed, /EXP-0001/);
     assert.match(printed, /หนึ่งพันบาทถ้วน/);
     assert.match(printed, /1,000\.00/);
@@ -539,8 +546,28 @@ test('actual expenses, receipts, and the reimbursement form stay on this server'
     assert.match(printed, /พ\.ศ\./);
     assert.match(printed, /เมษายน/);
     assert.match(printed, /2569/);
-    assert.match(printed, /ห้ามกรอกเลขบัตร\/เลขบัญชี/);
-    assert.match(printed, /ปกปิด \(mask\)/);
+    // Owner asked to drop these notes from the slip.
+    for (const removed of [
+      'ร่างแม่แบบ',
+      'TEMPLATE DRAFT',
+      'รอฝ่ายกฎหมาย',
+      'ห้ามใช้ลงนามจริงก่อนได้รับการตรวจ',
+      '(ห้ามกรอกเลขบัตร/เลขบัญชี)',
+      '(ลำดับเดียวกับสมุดบันทึกค่าใช้จ่ายก่อนจัดตั้ง)',
+      'หมายเหตุ: ปกปิด (mask)',
+      'ให้เหลือเฉพาะ 4 หลักท้าย',
+      'class="draft"',
+      'class="aside"',
+      'class="mask"',
+    ]) assert.equal(printed.includes(removed), false, removed);
+    assert.match(printed, /บรมเทค จำกัด \(อยู่ระหว่างจดทะเบียน\) – ใบทดรองจ่าย – ใช้ร่วมกับเอกสาร 04<\/p>/);
+    // Signature zone: two blocks, each with its own sign, name and date lines.
+    const zone = printed.slice(printed.indexOf('class="sign-zone"'), printed.indexOf('class="footer"'));
+    const blocks = zone.split('<div class="sign">').slice(1);
+    assert.equal(blocks.length, 2);
+    assert.match(blocks[0], /ลงชื่อ[\s\S]*ผู้ทดรองจ่าย[\s\S]*\(ผู้จ่ายตัวอย่าง\)[\s\S]*วันที่/);
+    assert.match(blocks[1], /ลงชื่อ[\s\S]*ผู้บันทึกลงสมุดบันทึก[\s\S]*sign-name[\s\S]*วันที่/);
+    assert.match(zone, /ป\.พ\.พ\. มาตรา 1108\(2\)/);
     assert.match(printed, /ผู้ทดรองจ่าย/);
     assert.match(printed, /ผู้บันทึกลงสมุดบันทึก/);
     assert.match(printed, /ป\.พ\.พ\. มาตรา 1108\(2\)/);
