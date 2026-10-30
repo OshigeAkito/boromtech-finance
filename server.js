@@ -789,7 +789,12 @@ export function createApp(options = {}) {
         console.error('office finance read failed');
       }
     }
-    res.type('html').send(officeHomePage({ role, csrf: session.csrf, finance }));
+    res.type('html').send(officeHomePage({
+      role,
+      csrf: session.csrf,
+      finance,
+      user: { name: session.name, email: session.email },
+    }));
   });
 
   app.use((req, res) => {

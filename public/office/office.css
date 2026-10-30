@@ -198,29 +198,18 @@ a { color: inherit; text-decoration: none; }
 }
 .skip:focus { transform: none; }
 
-.sign-out {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-  border: 0;
+.sign-out { margin: 0; }
+.sign-out-btn {
+  width: 100%;
+  justify-content: center;
+  background: transparent;
+  color: var(--bt-color-text-on-sidebar);
+  border-color: var(--bt-color-icon-on-sidebar);
 }
-.sign-out:focus-within {
-  position: fixed;
-  width: auto;
-  height: auto;
-  margin: 0;
-  clip: auto;
-  left: var(--bt-space-16);
-  top: 52px;
-  z-index: 5;
-  background: var(--bt-color-bg-surface);
-  padding: var(--bt-space-8);
-  border-radius: var(--bt-radius-sm);
+.sign-out-btn:hover,
+.sign-out-btn:focus-visible {
+  background: var(--bt-color-bg-sidebar-active);
+  color: var(--bt-color-text-inverse);
 }
 
 .visually-hidden {
@@ -322,7 +311,8 @@ a { color: inherit; text-decoration: none; }
   color: var(--bt-color-text-primary);
 }
 
-.user-name { color: var(--bt-color-text-inverse); }
+.user-meta { min-width: 0; }
+.user-name { color: var(--bt-color-text-inverse); overflow-wrap: anywhere; }
 .user-role { color: var(--bt-color-text-on-sidebar); }
 
 .main {
