@@ -5,7 +5,7 @@ import test from 'node:test';
 import { createMemoryStore } from '../lib/memory-store.js';
 import { officeHomePage } from '../lib/office-page.js';
 import { createApp } from '../server.js';
-import { baseEnv, createFakeOidc, signIn, withServer } from './helpers.js';
+import { baseEnv, createFakeOidc, csrfFrom, mergeCookies, signIn, withServer } from './helpers.js';
 
 const example = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '..', 'data', 'forecast.example.json'), 'utf8'));
 
@@ -175,4 +175,45 @@ test('without a database the cashflow card keeps the sample figures', async () =
     assert.match(html, /data-example="true"/);
     assert.match(html, /฿1,250,000/);
   });
+});
+
+test('office home names the signed-in person and signs out from a visible sidebar button', async () => {
+  const app = createApp({
+    env: baseEnv({ OFFICE_ROLES: 'investor@example.com:director' }),
+    oidc: createFakeOidc(),
+    store: createMemoryStore(example),
+  });
+  await withServer(app, async (base) => {
+    const signed = await signIn(base, 'allowed');
+    const html = await (await fetch(`${base}/office`, { headers: { cookie: signed.jar } })).text();
+    assert.match(html, /สวัสดี คุณExample Investor/);
+    assert.match(html, /class="bt-body-strong user-name">Example Investor</);
+    assert.match(html, /class="bt-body-small user-role">กรรมการ</);
+    assert.equal(html.includes('(ชื่อผู้ใช้)'), false);
+    assert.equal(html.includes('บทบาท (ตัวอย่าง)'), false);
+
+    const sidebar = html.match(/<aside class="sidebar">[\s\S]*?<\/aside>/)[0];
+    assert.match(sidebar, /<form class="sign-out" method="post" action="\/auth\/logout">[\s\S]*?>ออกจากระบบ<\/button><\/form>/);
+    assert.equal((html.match(/action="\/auth\/logout"/g) || []).length, 1);
+
+    const styles = await (await fetch(`${base}/office-assets/office.css`, { headers: { cookie: signed.jar } })).text();
+    const rule = styles.match(/\.sign-out \{[^}]*\}/)[0];
+    assert.equal(/clip|width: 1px|position: absolute/.test(rule), false);
+
+    const out = await fetch(`${base}/auth/logout`, {
+      method: 'POST',
+      redirect: 'manual',
+      headers: { cookie: signed.jar, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ csrf: csrfFrom(sidebar) }),
+    });
+    assert.equal(out.status, 302);
+    assert.equal(out.headers.get('location'), '/login');
+    assert.equal(mergeCookies(signed.jar, out).includes('bt_session='), false);
+  });
+});
+
+test('office home without a signed-in person keeps the sample card', () => {
+  const html = page('founder');
+  assert.match(html, /ชื่อผู้ใช้ \(ตัวอย่าง\)/);
+  assert.match(html, /สวัสดีตอนเช้า คุณ \(ชื่อผู้ใช้\)/);
 });
