@@ -198,29 +198,18 @@ a { color: inherit; text-decoration: none; }
 }
 .skip:focus { transform: none; }
 
-.sign-out {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-  border: 0;
+.sign-out { margin: 0; }
+.sign-out-btn {
+  width: 100%;
+  justify-content: center;
+  background: transparent;
+  color: var(--bt-color-text-on-sidebar);
+  border-color: var(--bt-color-icon-on-sidebar);
 }
-.sign-out:focus-within {
-  position: fixed;
-  width: auto;
-  height: auto;
-  margin: 0;
-  clip: auto;
-  left: var(--bt-space-16);
-  top: 52px;
-  z-index: 5;
-  background: var(--bt-color-bg-surface);
-  padding: var(--bt-space-8);
-  border-radius: var(--bt-radius-sm);
+.sign-out-btn:hover,
+.sign-out-btn:focus-visible {
+  background: var(--bt-color-bg-sidebar-active);
+  color: var(--bt-color-text-inverse);
 }
 
 .visually-hidden {
@@ -294,10 +283,36 @@ a { color: inherit; text-decoration: none; }
   line-height: 1.5;
 }
 
+/* Working sections are bright; sample sections are dimmed and tagged, so colour is not the only cue. */
+.nav-item-live { color: var(--bt-color-text-inverse); font-weight: 500; }
+.nav-item-sample { color: var(--bt-color-text-on-sidebar); }
+.nav-item-sample .icon { opacity: .55; }
+.nav-tag {
+  margin-left: auto;
+  padding: 0 6px;
+  border: 1px solid var(--bt-gray-700);
+  border-radius: var(--bt-radius-full);
+  font-size: 11px;
+  line-height: 18px;
+  color: var(--bt-color-text-on-sidebar);
+}
+
+.nav-item:hover,
+.nav-item:focus-visible {
+  background: var(--bt-color-bg-sidebar-active);
+  color: var(--bt-color-text-inverse);
+}
+.nav-item-sample:hover .icon,
+.nav-item-sample:focus-visible .icon { opacity: .8; }
+.nav-item-live:hover,
+.nav-item-live:focus-visible { box-shadow: inset 0 0 0 1px var(--bt-color-border-brand); }
+
+/* The current page keeps an orange bar, so it never looks like a hover. */
 .nav-item[aria-current="page"] {
   background: var(--bt-color-bg-sidebar-active);
   color: var(--bt-color-text-inverse);
   font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--bt-color-bg-brand);
 }
 
 .side-spacer { flex: 1; min-height: var(--bt-space-8); }
@@ -322,7 +337,8 @@ a { color: inherit; text-decoration: none; }
   color: var(--bt-color-text-primary);
 }
 
-.user-name { color: var(--bt-color-text-inverse); }
+.user-meta { min-width: 0; }
+.user-name { color: var(--bt-color-text-inverse); overflow-wrap: anywhere; }
 .user-role { color: var(--bt-color-text-on-sidebar); }
 
 .main {
