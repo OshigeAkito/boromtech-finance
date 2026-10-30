@@ -148,7 +148,7 @@ test('executives see real cashflow figures from the forecast and actual expenses
     assert.equal(html.includes('฿1,250,000'), false);
     // January is past on 10 Feb 2026, so the planned rows start in February.
     assert.match(html, /<p class="bt-body-small expense-month">ก\.พ\.<\/p>/);
-    assert.match(html, /<a class="nav-item" href="\/"[^>]*>.*การเงิน/s);
+    assert.match(html, /<a class="nav-item nav-item-live" href="\/"[^>]*>.*การเงิน/s);
     assert.match(html, /<a class="btn btn-primary" href="\/actual\/new">/);
     assert.match(html, /href="\/">ดูแดชบอร์ดการเงิน<\/a>/);
     assert.equal(reads, 1);
@@ -216,4 +216,19 @@ test('office home without a signed-in person keeps the sample card', () => {
   const html = page('founder');
   assert.match(html, /ชื่อผู้ใช้ \(ตัวอย่าง\)/);
   assert.match(html, /สวัสดีตอนเช้า คุณ \(ชื่อผู้ใช้\)/);
+});
+
+test('the office sidebar sets working sections apart from samples and shows hover and current states', async () => {
+  const html = page('founder');
+  const nav = html.match(/<nav class="side-nav"[\s\S]*?<\/nav>/)[0];
+  assert.match(nav, /class="nav-item nav-item-live" href="\/office" aria-current="page"/);
+  assert.match(nav, /class="nav-item nav-item-live" href="\/"><img[^>]*><span>การเงิน<\/span><\/a>/);
+  const samples = nav.match(/class="nav-item nav-item-sample"[\s\S]*?<\/a>/g) || [];
+  assert.equal(samples.length, 6);
+  for (const item of samples) assert.match(item, /<span class="nav-tag bt-caption-tag">ตัวอย่าง<\/span>/);
+
+  const styles = fs.readFileSync(path.join(import.meta.dirname, '..', 'public', 'office', 'office.css'), 'utf8');
+  assert.match(styles, /\.nav-item:hover,\n\.nav-item:focus-visible \{/);
+  assert.match(styles, /\.nav-item-sample \.icon \{ opacity: \.55; \}/);
+  assert.match(styles, /\.nav-item\[aria-current="page"\] \{[^}]*box-shadow: inset 3px 0 0/);
 });
