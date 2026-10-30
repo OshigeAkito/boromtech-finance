@@ -389,6 +389,7 @@ test('sign out from a tab opened before the last sign-in asks again instead of f
     assert.equal(stale.status, 403);
     const html = await stale.text();
     assert.match(html, /Sign out investor@example\.com\?/);
+    assert.match(html, /class="logout-confirm">.*<button class="primary" type="submit">Sign out<\/button>/);
     assert.equal(mergeCookies(second.jar, stale).includes('bt_session='), true);
 
     const retried = await logout(csrfFrom(html));
