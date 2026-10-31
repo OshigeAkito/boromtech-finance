@@ -126,7 +126,7 @@ test('dashboard labels name actual and planned in English and Thai', () => {
     lang: 'en',
   });
   assert.match(english, /Actual spent/);
-  assert.match(english, /Actual and planned by month/);
+  assert.match(english, /Funding, income and expenses by month/);
   assert.match(english, /Include plan/);
   assert.match(english, /Actual only/);
   assert.match(english, /href="\/\?view=actual"/);
@@ -268,4 +268,24 @@ test('a planned expense months ahead shows on the dashboard with every month in 
   const html = dashboardPage({ forecast, actuals: [], example: false, email: 'investor@example.com', name: 'Example', view: 'plan' });
   const chart = html.match(/<svg class="chart-svg"[\s\S]*?<\/svg>/)[0];
   for (const label of ['Jan', 'Feb', 'Mar', 'Apr', 'May']) assert.match(chart, new RegExp(label));
+});
+
+test('the expense column stacks actual under the unspent forecast and equals the outflow', () => {
+  const forecast = {
+    company: 'Fixture Co',
+    currency: 'THB',
+    registeredCapital: '2000.00',
+    openingCapital: { amount: '1000.00', sharePercent: 50, shareText: '50', assumed: false },
+    months: [
+      { key: '2026-01', label: 'Jan 2026', labelFull: 'January 2026', revenue: '50.00', items: [{ group: 'g', groupName: 'G', name: 'Plan', amount: '200.00' }] },
+      { key: '2026-02', label: 'Feb 2026', labelFull: 'February 2026', revenue: '0.00', items: [{ group: 'g', groupName: 'G', name: 'Plan', amount: '100.00' }] },
+    ],
+  };
+  const actuals = [actual('2026-01-10', '80.00'), actual('2026-02-10', '150.00')];
+  const plan = dashboardPage({ forecast, actuals, example: false, email: 'investor@example.com', name: 'Example', view: 'plan' });
+  // Jan: 80 spent of a 200 plan, so 120 forecast remains; Feb: 150 spent beats the 100 plan.
+  assert.match(plan, /data-tip="Jan 2026 · Funding 1,000\.00 THB · Income 50\.00 THB · Expense 200\.00 THB \(actual 80\.00 · forecast 120\.00\)"/);
+  assert.match(plan, /data-tip="Feb 2026 · Funding 850\.00 THB · Income 0\.00 THB · Expense 150\.00 THB \(actual 150\.00 · forecast 0\.00\)"/);
+  const actualOnly = dashboardPage({ forecast, actuals, example: false, email: 'investor@example.com', name: 'Example', view: 'actual' });
+  assert.match(actualOnly, /data-tip="Jan 2026 · Funding 1,000\.00 THB · Income 50\.00 THB · Expense 80\.00 THB \(actual 80\.00 · forecast 0\.00\)"/);
 });

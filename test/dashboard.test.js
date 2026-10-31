@@ -167,10 +167,12 @@ test('example dashboard HTML has the chart, expandable table, group totals, and 
   // Balance and spending charts live on separate scales, with hover text on every mark.
   assert.match(html, /data-tip="Opening capital: 1,000,000\.00 THB"/);
   assert.match(html, /data-tip="Jan 2026 · Balance: 870,000\.00 THB"/);
-  assert.match(html, /data-tip="Jan 2026 · Planned 130,000\.00 THB · Actual – THB · Outflow 130,000\.00 THB"/);
+  assert.match(html, /data-tip="Jan 2026 · Funding 1,000,000\.00 THB · Income 0\.00 THB · Expense 130,000\.00 THB \(actual 0\.00 · forecast 130,000\.00\)"/);
   assert.equal(html.split('class="hit"').length - 1, 3 + 1 + 3);
-  assert.match(html, /<span class="swatch" style="background:#2a78d6"><\/span>Planned/);
-  assert.match(html, /<span class="swatch" style="background:#E56E3F"><\/span>Actual/);
+  assert.match(html, /<span class="swatch" style="background:#6250d6"><\/span>Funding/);
+  assert.match(html, /<span class="swatch" style="background:#1baf7a"><\/span>Income/);
+  assert.match(html, /<span class="swatch" style="background:#E56E3F"><\/span>Actual expense/);
+  assert.match(html, /<span class="swatch" style="background:#2a78d6"><\/span>Forecast expense/);
   assert.match(html, /id="chart-tip" role="tooltip" hidden/);
   // Month names come from the 2026-01 style keys, in English.
   assert.match(html, />Jan 2026</);
@@ -267,7 +269,7 @@ test('an empty forecast does not draw a 0–1 spending chart, and notes keep Eng
     lang: 'en',
   });
   const spend = html.slice(html.indexOf('id="spend-heading"'), html.indexOf('id="summary-heading"'));
-  assert.match(spend, /No expenses to chart yet/);
+  assert.match(spend, /No months to chart yet/);
   assert.match(html, /No months to chart yet/);
   assert.match(html, /No forecast months\. Actual expenses still appear by payment date/);
   assert.match(html, /No actual expenses yet\. Months without one still count the plan/);
@@ -283,7 +285,7 @@ test('an empty forecast does not draw a 0–1 spending chart, and notes keep Eng
     name: '',
     lang: 'th',
   });
-  assert.match(thai, /ยังไม่มีรายจ่ายให้แสดงบนกราฟ/);
+  assert.match(thai, /ยังไม่มีเดือนให้แสดงบนกราฟ/);
   assert.match(thai, /ยังไม่มีเดือนให้แสดงบนกราฟ/);
   assert.match(thai, /ยังไม่มีเดือนในประมาณการ รายจ่ายจริงยังแสดงตามเดือนของวันที่จ่าย/);
   assert.match(thai, /ยังไม่มีรายจ่ายจริง เดือนที่ไม่มีรายจ่ายจริงยังนับยอดประมาณการ/);
