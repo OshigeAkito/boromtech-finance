@@ -2,7 +2,7 @@
    Tokens follow the BoromTech Office Portal design (Figma "Proposal v2"), shared with /office:
    navy #1E2235 for text and dark surfaces, orange #E56E3F for buttons and accents, canvas #ECEEF2.
    Orange is too light for text on white, so text and links stay navy.
-   Fonts: IBM Plex Sans Thai (OFL), served from /office-assets/fonts for signed-in pages. */
+   Fonts: Noto Sans Thai (OFL), served from /font-assets; Bricolage from /office-assets/fonts. */
 @font-face {
   font-family: "Bricolage Grotesque";
   font-style: normal;
@@ -24,74 +24,20 @@
 }
 
 @font-face {
-  font-family: "IBM Plex Sans Thai";
+  font-family: "Noto Sans Thai";
   font-style: normal;
-  font-weight: 400;
+  font-weight: 400 700;
   font-display: swap;
-  src: url("/office-assets/fonts/plex-400-thai.woff2") format("woff2");
+  src: url("/font-assets/noto-sans-thai-thai.woff2") format("woff2");
   unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC;
 }
 
 @font-face {
-  font-family: "IBM Plex Sans Thai";
+  font-family: "Noto Sans Thai";
   font-style: normal;
-  font-weight: 400;
+  font-weight: 400 700;
   font-display: swap;
-  src: url("/office-assets/fonts/plex-400-latin.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-
-@font-face {
-  font-family: "IBM Plex Sans Thai";
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url("/office-assets/fonts/plex-500-thai.woff2") format("woff2");
-  unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC;
-}
-
-@font-face {
-  font-family: "IBM Plex Sans Thai";
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url("/office-assets/fonts/plex-500-latin.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-
-@font-face {
-  font-family: "IBM Plex Sans Thai";
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("/office-assets/fonts/plex-600-thai.woff2") format("woff2");
-  unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC;
-}
-
-@font-face {
-  font-family: "IBM Plex Sans Thai";
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("/office-assets/fonts/plex-600-latin.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-
-@font-face {
-  font-family: "IBM Plex Sans Thai";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("/office-assets/fonts/plex-700-thai.woff2") format("woff2");
-  unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC;
-}
-
-@font-face {
-  font-family: "IBM Plex Sans Thai";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("/office-assets/fonts/plex-700-latin.woff2") format("woff2");
+  src: url("/font-assets/noto-sans-thai-latin.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
@@ -119,8 +65,8 @@
   --ok-bg: #fde7dc;
   --radius: 16px;
   --shadow: 0 1px 2px rgba(30, 34, 53, .04), 0 6px 20px rgba(30, 34, 53, .05);
-  --font: "IBM Plex Sans Thai", "Leelawadee UI", Thonburi, "Noto Sans Thai", system-ui, sans-serif;
-  --font-latin: "Bricolage Grotesque", "IBM Plex Sans Thai", system-ui, sans-serif;
+  --font: "Noto Sans Thai", "Leelawadee UI", Thonburi, system-ui, sans-serif;
+  --font-latin: "Bricolage Grotesque", "Noto Sans Thai", system-ui, sans-serif;
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -231,6 +177,26 @@ h3 { margin: 16px 0 8px; font-size: 1rem; }
 .kicker { margin: 0; letter-spacing: .04em; font-size: .78rem; color: var(--ink-3); }
 .muted, .hint { color: var(--ink-3); font-weight: 400; }
 .hint { margin: 0; font-size: .88rem; }
+
+/* Key messages: one short line with an icon in place of help sentences. */
+.key { display: flex; align-items: flex-start; gap: 6px; margin: 0; font-size: .88rem; color: var(--ink-3); }
+.key-icon { flex: none; width: 16px; height: 16px; margin-top: .2em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.key.warn { color: var(--warn-ink); }
+fieldset > .key { margin: 0 0 10px; }
+.month-field { position: relative; }
+.month-button { width: 100%; height: 45px; text-align: left; font: inherit; font-weight: 400; line-height: 1.2; color: var(--ink); background: white; border: 1px solid var(--line-strong); border-radius: 10px; padding: 8px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.month-button::after { content: "▾"; color: var(--ink-3); }
+.month-button.empty { color: var(--ink-3); }
+.month-button:hover { border-color: #aab2be; }
+.month-button:focus-visible, .month-button[aria-expanded="true"] { border-color: var(--brand); outline: none; }
+.month-panel { position: absolute; z-index: 30; left: 0; top: 100%; margin-top: 4px; width: min(280px, 100%); min-width: 240px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 24px rgba(30, 34, 53, .14); padding: 10px; }
+.month-panel[hidden] { display: none; }
+.month-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.month-head button { font: inherit; font-size: 1.2rem; line-height: 1; width: 36px; height: 32px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--ink); cursor: pointer; }
+.month-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.month-grid button { font: inherit; padding: 8px 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--ink); cursor: pointer; }
+.month-grid button:hover { border-color: var(--brand); }
+.month-grid button[aria-pressed="true"] { background: var(--navy); border-color: var(--navy); color: #fff; }
 .panel {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -540,3 +506,9 @@ tr.total th, tr.total td { font-weight: 800; background: var(--surface-2); borde
   body { background: white; }
   .panel { box-shadow: none; break-inside: avoid; }
 }
+
+/* Amount and its currency on one line. More specific than .field > span and
+   .field select, which would otherwise wrap it and stretch the select. */
+.field > .money-input { display: flex; flex-wrap: nowrap; align-items: stretch; gap: 6px; min-height: 0; }
+.field .money-input input { flex: 1; min-width: 0; }
+.field .money-input select { flex: none; width: auto; }

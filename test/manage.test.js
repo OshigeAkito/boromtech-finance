@@ -301,7 +301,7 @@ test('four tabs: income holds the months, expenses has actual and planned, capit
     assert.match(planned, /<a href="\/forecast" aria-current="page">Planned<\/a>/);
     assert.match(planned, /<h1>Planned expenses<\/h1>/);
     assert.match(actual, /<h1>Expenses<\/h1>/);
-    assert.match(planned, /January 2026/);
+    assert.match(planned, /Jan 2026/);
 
     const income = await (await get('/income')).text();
     const csrf = csrfFrom(income);
@@ -325,12 +325,13 @@ test('four tabs: income holds the months, expenses has actual and planned, capit
 
     const capital = await (await get('/capital')).text();
     assert.match(capital, /<a href="\/capital" aria-current="page">Capital<\/a>/);
-    assert.equal(capital.includes('THB per 1 USD'), false);
-    assert.equal(capital.includes('name="fxRate"'), false);
+    // One USD rate for planned costs entered in USD; the other fx fields stay off the page.
+    assert.match(capital, /THB per 1 USD/);
+    assert.match(capital, /name="fxRate"/);
     assert.equal(capital.includes('name="openingShare"'), false);
     assert.equal(capital.includes('name="fxUpdatedDisplay"'), false);
 
-    // Share is worked out from the two amounts. A posted rate does not replace the stored one.
+    // Share is worked out from the two amounts. A typed USD rate replaces the stored one.
     const saved = await postForm(base, result.jar, '/capital', {
       csrf,
       company: example.company,
@@ -346,8 +347,24 @@ test('four tabs: income holds the months, expenses has actual and planned, capit
     assert.equal(saved.status, 303);
     const after = (await (await get('/api/forecast')).json()).forecast;
     assert.equal(String(after.openingCapital.sharePercent).replace(/\.0+$/, ''), '25');
-    assert.equal(after.fx.rate, example.fx.rate);
-    assert.equal(after.fx.source, example.fx.source);
+    assert.equal(after.fx.rate, '99.99');
+    assert.equal(after.fx.base, 'USD');
+    assert.equal(after.fx.quote, 'THB');
+    const kept = await postForm(base, result.jar, '/capital', {
+      csrf,
+      company: example.company,
+      currency: 'THB',
+      registeredCapital: '500000',
+      openingAmount: '125000',
+      fxRate: '',
+      documentPrefix: 'EXP',
+      balanceFormula: '',
+      assumptions: '',
+      notYetIncluded: '',
+    });
+    assert.equal(kept.status, 303);
+    assert.equal((await (await get('/api/forecast')).json()).forecast.fx.rate, '99.99');
+    assert.equal(after.fx.source, 'Capital page');
     assert.equal(after.openingCapital.assumed, false);
     const dashboard = await (await get('/')).text();
     assert.equal(dashboard.includes('1 USD ='), false);

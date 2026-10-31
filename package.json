@@ -12,10 +12,15 @@
     "dev": "node --env-file=.env server.js",
     "test": "node --test",
     "check": "node scripts/check-forecast.js --example data/forecast.example.json",
-    "import-forecast": "node scripts/import-forecast.js"
+    "import-forecast": "node scripts/import-forecast.js",
+    "cf:dev": "wrangler dev",
+    "cf:deploy": "wrangler deploy"
   },
   "dependencies": {
     "express": "5.3.0",
     "openid-client": "6.8.8"
+  },
+  "devDependencies": {
+    "wrangler": "4.156.0"
   }
 }

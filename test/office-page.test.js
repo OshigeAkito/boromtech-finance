@@ -102,10 +102,10 @@ test('office home is behind the existing login and roles do not bypass the allow
     assert.match(styles, /--bt-gray-100:\s*#eceef2/);
     assert.match(styles, /\.bt-display-th/);
     assert.match(styles, /\.bt-number-large/);
-    assert.match(styles, /IBM Plex Sans Thai/);
+    assert.match(styles, /Noto Sans Thai/);
     assert.match(styles, /Bricolage Grotesque/);
 
-    const font = await fetch(`${base}/office-assets/fonts/plex-400-thai.woff2`, { headers: { cookie: signed.jar } });
+    const font = await fetch(`${base}/font-assets/noto-sans-thai-thai.woff2`);
     assert.equal(font.status, 200);
     assert.match(font.headers.get('content-type') || '', /font\/woff2/);
 

@@ -130,8 +130,8 @@ test('dashboard labels name actual and planned in English and Thai', () => {
   assert.match(english, /Include plan/);
   assert.match(english, /Actual only/);
   assert.match(english, /href="\/\?view=actual"/);
-  assert.match(english, /larger of actual spending and the plan/);
-  assert.match(english, /grouped by the payment date/);
+  assert.match(english, /larger of actual and plan, by payment date/);
+  assert.match(english, /Balance = opening \+ income − outflow/);
   assert.match(english, />–</);
   assert.match(english, />Oct 2026</);
   assert.match(english, /No forecast months/);
@@ -225,7 +225,7 @@ test('the dashboard pages for both modes use the matching ending', () => {
   assert.match(plan, /800\.00/);
   assert.match(actualOnly, /aria-current="true">Actual only/);
   assert.match(actualOnly, /950\.00/);
-  assert.match(actualOnly, /Planned amounts are left out, including future months/);
+  assert.match(actualOnly, /Outflow = actual spending, by payment date/);
   assert.equal(plan.includes('250.00'), false);
 });
 
@@ -248,4 +248,24 @@ test('a missing global exchange rate does not stop the forecast from loading', (
   }
   assert.equal(presentForecast({ ...raw, fx: { rate: '' } }).fx.rate, '');
   assert.equal(presentForecast({ ...raw, fx: { rate: '33.50' } }).fx.rate, '33.50');
+});
+
+test('a planned expense months ahead shows on the dashboard with every month in between', () => {
+  const forecast = {
+    company: 'Fixture Co',
+    currency: 'THB',
+    registeredCapital: '2000.00',
+    openingCapital: { amount: '1000.00', sharePercent: 50, shareText: '50', assumed: false },
+    months: [
+      { key: '2026-01', label: 'Jan 2026', labelFull: 'January 2026', revenue: '0.00', items: [{ group: 'g', groupName: 'G', name: 'Now', amount: '100.00' }] },
+      // Added by a planned expense alone: no income was entered for it.
+      { key: '2026-05', label: 'May 2026', labelFull: 'May 2026', revenue: '0.00', items: [{ group: 'g', groupName: 'G', name: 'Later', amount: '300.00' }] },
+    ],
+  };
+  const summary = buildDashboardSummary(forecast, [], 'plan');
+  assert.deepEqual(summary.months.map((row) => row.month.key), ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05']);
+  assert.deepEqual(summary.months.map((row) => String(row.closingCents)), ['90000', '90000', '90000', '90000', '60000']);
+  const html = dashboardPage({ forecast, actuals: [], example: false, email: 'investor@example.com', name: 'Example', view: 'plan' });
+  const chart = html.match(/<svg class="chart-svg"[\s\S]*?<\/svg>/)[0];
+  for (const label of ['Jan', 'Feb', 'Mar', 'Apr', 'May']) assert.match(chart, new RegExp(label));
 });

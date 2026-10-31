@@ -114,6 +114,29 @@ node scripts/check-forecast.js /path/outside/the/repo/forecast.json
 
 แพลนฟรีของ Render จะหลับหลังไม่มีคนเปิดประมาณ 15 นาที ครั้งถัดไปอาจใช้เวลาครู่หนึ่งกว่าจะตื่น ข้อมูลไม่หายเพราะอยู่ใน Supabase
 
+### 3ข. Cloudflare Workers (ทางเลือกแทน Render)
+
+ใช้แทนข้อ 3 ได้ แผนฟรีของ Workers ไม่หลับ จึงไม่ต้องรอตื่นตอนเปิดหน้าแรก ข้อมูลยังอยู่ที่ Supabase เหมือนเดิม ไฟล์ `wrangler.jsonc` กำหนดให้ทุกคำขอผ่านแอปก่อน ไฟล์ใน `public/` ที่ต้องล็อกอินจึงยังเป็นส่วนตัว และมี cron วันละครั้งที่อ่านข้อมูลจาก Supabase เพื่อไม่ให้โปรเจกต์ฟรีถูกพักเพราะไม่มีการใช้งานเกิน 7 วัน
+
+1. `npx wrangler login`
+2. ใส่ความลับทีละตัว ค่าไม่อยู่ใน git:
+
+   ```bash
+   for name in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET SESSION_SECRET ALLOWED_EMAILS SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
+     npx wrangler secret put "$name"
+   done
+   ```
+
+   ถ้าใช้ `OFFICE_ROLES` ให้ใส่ด้วยวิธีเดียวกัน
+3. `npm run cf:deploy` จะได้ URL แบบ `https://boromtech-finance.<บัญชี>.workers.dev`
+4. ตั้ง `BASE_URL` เป็น URL นั้น (`npx wrangler secret put BASE_URL` หรือเพิ่มใน `vars` ของ `wrangler.jsonc`) แล้ว deploy อีกครั้ง
+5. ใน Google Cloud Console เพิ่ม Authorized redirect URI `https://boromtech-finance.<บัญชี>.workers.dev/auth/google/callback`
+6. เพิ่มหรือลบอีเมลด้วย `npx wrangler secret put ALLOWED_EMAILS` แทนการแก้ใน Render
+
+ลองบนเครื่อง: คัดลอก `.dev.vars.example` เป็น `.dev.vars` เติมค่า แล้ว `npm run cf:dev` เปิด `http://localhost:8787` และเพิ่ม `http://localhost:8787/auth/google/callback` ใน Google ถ้าจะล็อกอินจริง
+
+ข้อควรรู้: แผนฟรีของ Workers ให้เวลา CPU 10 ms ต่อคำขอ หน้าเว็บทั่วไปอยู่ในเกณฑ์ แต่การแนบไฟล์หลักฐานหลายไฟล์ใหญ่ๆ อาจเกิน ถ้าเห็นข้อผิดพลาดตอนอัปโหลด ให้ใช้แผน Workers Paid หรือใช้ Render ต่อ
+
 ### 4. นำเข้าตัวเลขปัจจุบันครั้งเดียว
 
 ทำบนเครื่องตัวเองหลังใส่ตัวแปรในไฟล์ `.env` แล้ว วางไฟล์ JSON จริงไว้นอกรีโป เช่นในโฟลเดอร์บ้าน ห้ามวางในรีโป และห้ามชี้คำสั่งไปที่ไฟล์ในรีโป สคริปต์จะปฏิเสธ

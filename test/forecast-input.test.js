@@ -120,3 +120,40 @@ test('the notes migration lets the database keep line breaks in notes', () => {
   assert.equal(/\bto (anon|authenticated)\b/i.test(sql), false);
   assert.match(sql, /grant execute on function public\.create_actual_expense\(jsonb\) to service_role/);
 });
+
+test('the simple planned form turns a date range and repeat into months', () => {
+  const base = { name: 'Hosting', value: '100.00', currency: 'THB', monthKey: '2026-01' };
+  const keys = (body) => parseItem({ ...base, ...body }).value?.monthKeys;
+  assert.deepEqual(keys({ frequency: 'once', endKey: '' }), ['2026-01']);
+  assert.deepEqual(keys({ frequency: 'monthly', endKey: '2026-03' }), ['2026-01', '2026-02', '2026-03']);
+  assert.deepEqual(keys({ frequency: 'quarterly', endKey: '2026-08' }), ['2026-01', '2026-04', '2026-07']);
+  assert.deepEqual(keys({ frequency: 'yearly', endKey: '2028-01' }), ['2026-01', '2027-01', '2028-01']);
+  assert.equal(keys({ frequency: 'monthly', endKey: '2028-12' }).length, 36);
+
+  const fieldsOf = (body) => parseItem({ ...base, ...body }).errors?.map((error) => error.field);
+  assert.deepEqual(fieldsOf({ frequency: 'monthly', endKey: '' }), ['endKey']);
+  assert.deepEqual(fieldsOf({ frequency: 'monthly', endKey: '2025-12' }), ['endKey']);
+  assert.deepEqual(fieldsOf({ frequency: 'monthly', endKey: '2029-01' }), ['endKey']);
+});
+
+test('the simple planned form groups by name and counts USD at the Capital rate', () => {
+  const groups = new Map([['office rent', { group: 'office', groupName: 'Office' }]]);
+  const reused = parseItem({ name: 'Office Rent', value: '5000', currency: 'THB', monthKey: '2026-02' }, 'en', { groups });
+  assert.equal(reused.value.group, 'office');
+  assert.equal(reused.value.groupName, 'Office');
+  assert.equal(reused.value.amount, '5000.00');
+  assert.equal(reused.value.usd, null);
+
+  const fresh = parseItem({ name: 'Cloud hosting', value: '1', currency: 'THB', monthKey: '2026-02' });
+  assert.equal(fresh.value.group, 'cloud-hosting');
+  assert.equal(fresh.value.groupName, 'Cloud hosting');
+  const thai = parseItem({ name: 'ค่าเช่าสำนักงาน', value: '1', currency: 'THB', monthKey: '2026-02' });
+  assert.match(thai.value.group, /^g[0-9a-f]{12}$/);
+  assert.equal(parseItem({ name: 'ค่าเช่าสำนักงาน', value: '2', currency: 'THB', monthKey: '2026-03' }).value.group, thai.value.group);
+
+  const usd = parseItem({ name: 'Domain', value: '12.34', currency: 'USD', monthKey: '2026-02' }, 'en', { usdRate: '33.78705' });
+  assert.equal(usd.value.usd, '12.34');
+  assert.equal(usd.value.amount, '416.93');
+  const noRate = parseItem({ name: 'Domain', value: '12.34', currency: 'USD', monthKey: '2026-02' }, 'en', {});
+  assert.deepEqual(noRate.errors.map((error) => error.field), ['currency']);
+});

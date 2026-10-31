@@ -72,16 +72,17 @@ test('usd entered on the web shows beside the baht amount and stays out of total
   await withServer(app, async (base) => {
     const { jar } = await signIn(base, 'allowed');
     const page = await (await fetch(`${base}/forecast/items/new`, { headers: { cookie: jar } })).text();
-    assert.match(page, /name="usd"/);
+    assert.match(page, /name="currency"/);
     const before = await store.loadForecast();
+    // 12.00 USD at the example rate of 30.00 counts as 360.00 THB.
     const body = new URLSearchParams({
       csrf: csrfFrom(page),
-      monthId: before.months[0].id,
-      group: 'tools',
-      groupName: 'ค่าเครื่องมือตัวอย่าง',
+      monthKey: before.months[0].key,
+      frequency: 'once',
+      endKey: '',
       name: 'ซอฟต์แวร์ดอลลาร์',
-      amount: '405.44',
-      usd: '12.00',
+      value: '12.00',
+      currency: 'USD',
     });
     const created = await fetch(`${base}/forecast/items`, {
       method: 'POST',
@@ -93,13 +94,15 @@ test('usd entered on the web shows beside the baht amount and stays out of total
     const after = await store.loadForecast();
     const item = after.months[0].items.find((entry) => entry.name === 'ซอฟต์แวร์ดอลลาร์');
     assert.equal(item.usd, '12.00');
+    assert.equal(item.amount, '360.00');
 
     const dashboard = await (await fetch(`${base}/`, { headers: { cookie: jar } })).text();
-    assert.match(dashboard, /405\.44<span class="usd">US\$12\.00<\/span>/);
+    assert.match(dashboard, /360\.00<span class="usd">US\$12\.00<\/span>/);
     const forecast = await (await fetch(`${base}/forecast`, { headers: { cookie: jar } })).text();
     assert.match(forecast, /US\$12\.00/);
     const edit = await (await fetch(`${base}/forecast/items/${item.id}`, { headers: { cookie: jar } })).text();
-    assert.match(edit, /name="usd" type="text" value="12\.00"/);
+    assert.match(edit, /name="value" type="text" value="12\.00"/);
+    assert.match(edit, /<option value="USD" selected>USD<\/option>/);
   });
 });
 

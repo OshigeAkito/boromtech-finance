@@ -138,7 +138,7 @@ async function evaluate(client, expression) {
   return result.result?.value;
 }
 
-test('a hidden repeat section does not block saving a planned expense', {
+test('a hidden end month does not block saving a one-off planned expense', {
   skip: chromePath ? false : 'Chrome is not installed',
   timeout: 60_000,
 }, async () => {
@@ -187,29 +187,27 @@ test('a hidden repeat section does not block saving a planned expense', {
       await loaded;
       const before = await evaluate(client, `(() => {
         const form = document.querySelector('form[action="/forecast/items"]');
-        const count = form && form.querySelector('[name="repeatCount"]');
-        const repeat = form && form.querySelector('[name="repeat"]');
+        const end = form && form.querySelector('[name="endKey"]');
+        const once = form && form.querySelector('[name="frequency"][value="once"]');
         return {
           path: location.pathname,
           hasForm: Boolean(form),
-          repeatChecked: repeat ? repeat.checked : null,
-          countRequired: count ? count.required : null,
-          countDisabled: count ? count.disabled : null,
+          onceChecked: once ? once.checked : null,
+          endRequired: end ? end.required : null,
+          endDisabled: end ? end.disabled : null,
         };
       })()`);
       assert.equal(before.path, '/forecast/items/new');
       assert.equal(before.hasForm, true);
-      assert.equal(before.repeatChecked, false);
-      assert.equal(before.countRequired, false);
-      assert.equal(before.countDisabled, true);
+      assert.equal(before.onceChecked, true);
+      assert.equal(before.endRequired, false);
+      assert.equal(before.endDisabled, true);
       await evaluate(client, `(() => {
         const form = document.querySelector('form[action="/forecast/items"]');
         const fields = {
           monthKey: '2026-06',
-          amount: '15.50',
+          value: '15.50',
           name: 'Synthetic planned row',
-          group: 'tools',
-          groupName: 'Synthetic tools',
         };
         for (const [name, value] of Object.entries(fields)) {
           const input = form.querySelector('[name="' + name + '"]');

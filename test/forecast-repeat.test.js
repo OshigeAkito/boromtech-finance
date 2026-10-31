@@ -50,7 +50,7 @@ test('repeat keys step by quarter and year and stop at 36 months', () => {
   assert.equal(repeatMonthKeys('2026-01', 'monthly', 37), null);
 });
 
-test('a month can be added on the planned expenses page', async () => {
+test('months are added on Income; the planned list has no month box', async () => {
   const store = createMemoryStore(example);
   const loaded = await store.loadForecast();
   for (const month of loaded.months) await store.deleteMonth(month.id);
@@ -61,10 +61,8 @@ test('a month can be added on the planned expenses page', async () => {
     const page = await (await get('/forecast')).text();
     assert.match(page, /<h1>Planned expenses<\/h1>/);
     assert.match(page, /No planned expenses yet/);
-    assert.match(page, /name="key" type="month"/);
-    assert.match(page, /name="returnTo" value="forecast"/);
-    assert.match(page, /name="revenue" value="0\.00"/);
-    assert.match(page, />Add month</);
+    assert.equal(page.includes('name="key"'), false);
+    assert.equal(page.includes('>Add month<'), false);
     assert.match(page, /href="\/forecast\/items\/new"/);
     assert.equal(page.includes('Add a month on the Income page'), false);
     assert.equal(page.includes('href="/income">Add a month'), false);
@@ -250,21 +248,20 @@ test('a month added before the forecast is included in the balance walk', async 
 test('planned expense labels name the repeat choices in English and Thai', () => {
   const session = { lang: 'en', email: 'investor@example.com', name: 'Example Investor', path: '/forecast' };
   const english = itemFormPage({ session, forecast: example, csrf: 'token' });
-  assert.match(english, /Repeat this expense/);
-  assert.match(english, /Monthly/);
-  assert.match(english, /Quarterly/);
-  assert.match(english, /Yearly/);
-  assert.match(english, /Number of times/);
-  assert.match(english, /title="Enter a whole number from 1 to 36, such as 5 or 05\."/);
-  assert.match(english, /for="f-group"><span>Group code <abbr class="req"[^>]*>\*<\/abbr><\/span><input[^>]*name="group"[^>]*><p class="hint">/);
-  assert.match(english, /<abbr class="req"/);
+  for (const label of ['Once', 'Monthly', 'Quarterly', 'Yearly', 'Start month', 'End month', 'Expense name', 'Amount']) {
+    assert.match(english, new RegExp(label));
+  }
+  assert.match(english, /name="frequency" value="once" checked class="reveal-hide"/);
+  assert.match(english, /<select name="currency"[^>]*><option value="THB" selected>THB<\/option><option value="USD">USD<\/option>/);
+  assert.match(english, /1 USD = 30\.00 THB/);
+  // Only the four things are asked for.
+  for (const gone of ['name="group"', 'name="groupName"', 'name="assumed"', 'name="note"', 'name="repeatCount"', 'name="usd"']) {
+    assert.equal(english.includes(gone), false, gone);
+  }
   const thai = itemFormPage({ session: { ...session, lang: 'th' }, forecast: example, csrf: 'token' });
-  assert.match(thai, /ทำซ้ำรายการนี้/);
-  assert.match(thai, /รายเดือน/);
-  assert.match(thai, /รายไตรมาส/);
-  assert.match(thai, /รายปี/);
-  assert.match(thai, /จำนวนครั้ง/);
-  assert.match(thai, /title="ระบุจำนวนเต็มตั้งแต่ 1 ถึง 36 เช่น 5 หรือ 05"/);
+  for (const label of ['ครั้งเดียว', 'รายเดือน', 'รายไตรมาส', 'รายปี', 'เดือนเริ่ม', 'เดือนสิ้นสุด', 'ชื่อรายจ่าย', 'จำนวนเงิน']) {
+    assert.match(thai, new RegExp(label));
+  }
   assert.match(thai, /<option value="2026-01" selected>มกราคม 2569<\/option>/);
   assert.equal(thai.includes('name="monthKey" type="month"'), false);
   const empty = plannedPage({
@@ -272,7 +269,7 @@ test('planned expense labels name the repeat choices in English and Thai', () =>
     forecast: { ...example, months: [] },
     csrf: 'token',
   });
-  assert.match(empty, /เพิ่มเดือน/);
+  assert.equal(empty.includes('name="key"'), false);
   assert.match(empty, /ยังไม่มีรายจ่ายประมาณการ/);
   assert.equal(empty.includes('เพิ่มเดือนในหน้ารายรับ'), false);
 });

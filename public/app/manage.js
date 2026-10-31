@@ -63,3 +63,153 @@
   else boot();
   window.addEventListener('pageshow', boot);
 }());
+
+// Month fields become a small calendar: a year with arrows and twelve months.
+// The value still posts as YYYY-MM from a hidden input with the field's name,
+// which keeps data-reveal-required so the sync above still turns it off.
+(function () {
+  var open = null;
+
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+
+  function close() {
+    if (!open) return;
+    open.panel.hidden = true;
+    open.button.setAttribute('aria-expanded', 'false');
+    open = null;
+  }
+
+  function enhance(field) {
+    var source = field.querySelector('input[name], select[name]');
+    if (!source || field.querySelector('.month-button')) return;
+    var names = field.getAttribute('data-months').split(',');
+    var offset = Number(field.getAttribute('data-year-offset') || 0);
+    var value = document.createElement('input');
+    value.type = 'hidden';
+    value.name = source.name;
+    value.value = /^\d{4}-\d{2}$/.test(source.value) ? source.value : '';
+    if (source.hasAttribute('data-reveal-required')) value.setAttribute('data-reveal-required', '');
+    value.disabled = source.disabled;
+
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'month-button';
+    button.id = source.id;
+    button.setAttribute('aria-haspopup', 'true');
+    button.setAttribute('aria-expanded', 'false');
+
+    var panel = document.createElement('div');
+    panel.className = 'month-panel';
+    panel.hidden = true;
+    var head = document.createElement('div');
+    head.className = 'month-head';
+    var prev = document.createElement('button');
+    prev.type = 'button';
+    prev.textContent = '‹';
+    prev.setAttribute('aria-label', field.getAttribute('data-prev'));
+    var next = document.createElement('button');
+    next.type = 'button';
+    next.textContent = '›';
+    next.setAttribute('aria-label', field.getAttribute('data-next'));
+    var yearText = document.createElement('strong');
+    head.appendChild(prev);
+    head.appendChild(yearText);
+    head.appendChild(next);
+    var grid = document.createElement('div');
+    grid.className = 'month-grid';
+    panel.appendChild(head);
+    panel.appendChild(grid);
+
+    var shownYear;
+
+    function label() {
+      var m = /^(\d{4})-(\d{2})$/.exec(value.value);
+      button.textContent = m ? names[Number(m[2]) - 1] + ' ' + (Number(m[1]) + offset) : field.getAttribute('data-empty');
+      button.classList.toggle('empty', !m);
+    }
+
+    function draw() {
+      yearText.textContent = String(shownYear + offset);
+      grid.innerHTML = '';
+      for (var i = 1; i <= 12; i++) {
+        var key = shownYear + '-' + pad(i);
+        var cell = document.createElement('button');
+        cell.type = 'button';
+        cell.textContent = names[i - 1];
+        cell.setAttribute('data-key', key);
+        cell.setAttribute('aria-pressed', key === value.value ? 'true' : 'false');
+        grid.appendChild(cell);
+      }
+    }
+
+    function set(key) {
+      value.value = key;
+      label();
+      value.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    field._setMonth = set;
+    field._monthValue = value;
+
+    button.addEventListener('click', function () {
+      if (open && open.panel === panel) { close(); return; }
+      close();
+      var m = /^(\d{4})/.exec(value.value);
+      shownYear = m ? Number(m[1]) : new Date().getFullYear();
+      draw();
+      panel.hidden = false;
+      button.setAttribute('aria-expanded', 'true');
+      open = { panel: panel, button: button };
+      var picked = grid.querySelector('[aria-pressed="true"]') || grid.firstChild;
+      if (picked) picked.focus();
+    });
+    // The panel sits inside the field's label; a click on its padding must not
+    // count as a click on the label, which would press the month button again.
+    panel.addEventListener('click', function (event) {
+      if (!event.target.closest('button')) event.preventDefault();
+    });
+    prev.addEventListener('click', function () { shownYear -= 1; draw(); });
+    next.addEventListener('click', function () { shownYear += 1; draw(); });
+    grid.addEventListener('click', function (event) {
+      var cell = event.target.closest('[data-key]');
+      if (!cell) return;
+      set(cell.getAttribute('data-key'));
+      close();
+      button.focus();
+    });
+
+    source.parentNode.replaceChild(button, source);
+    button.parentNode.insertBefore(value, button.nextSibling);
+    button.parentNode.insertBefore(panel, value.nextSibling);
+    label();
+  }
+
+  document.addEventListener('click', function (event) {
+    if (open && !event.target.closest('.month-field')) close();
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && open) {
+      var button = open.button;
+      close();
+      button.focus();
+    }
+  });
+
+  // Choosing a repeat with no end month yet starts the end at the start month.
+  document.addEventListener('change', function (event) {
+    var target = event.target;
+    if (!target || target.name !== 'frequency' || target.value === 'once') return;
+    var form = target.form;
+    var start = form && form.querySelector('[data-month-picker] input[name="monthKey"]');
+    var endField = form && form.querySelector('[data-month-picker] input[name="endKey"]');
+    endField = endField && endField.closest('[data-month-picker]');
+    if (start && endField && endField._setMonth && !endField._monthValue.value && start.value) endField._setMonth(start.value);
+  });
+
+  function boot() {
+    var fields = document.querySelectorAll('[data-month-picker]');
+    for (var i = 0; i < fields.length; i++) enhance(fields[i]);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+}());

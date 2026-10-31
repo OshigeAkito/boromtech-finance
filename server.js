@@ -2,11 +2,13 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import express from 'express';
+import { assetPath, assetType, diskAssets } from './lib/assets.js';
 import { newCsrfToken, tokensMatch } from './lib/csrf.js';
 import { emailAllowed, readConfig } from './lib/config.js';
 import { contentDisposition, validateUploads } from './lib/files.js';
 import { todayBangkok } from './lib/dates.js';
 import { createPlannedOccurrences } from './lib/planned-items.js';
+import { findPlan } from './lib/planned-plans.js';
 import { claimSubmit } from './lib/submit-guard.js';
 import { createGoogleOidc } from './lib/google-oidc.js';
 import { confirmedDelete, parseActual, parseItem, parseMonth, parseSettings } from './lib/input.js';
@@ -44,14 +46,10 @@ import {
 } from './lib/session.js';
 import { createSupabaseStore } from './lib/supabase-store.js';
 
-const appDir = path.dirname(fileURLToPath(import.meta.url));
+// Unset in the Cloudflare bundle, which reads public/ through its own assets.
+const appDir = import.meta.url ? path.dirname(fileURLToPath(import.meta.url)) : '';
 const RECEIPT_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png']);
-const APP_ASSETS = {
-  'manage.css': 'text/css; charset=utf-8',
-  'manage.js': 'application/javascript; charset=utf-8',
-  'print.css': 'text/css; charset=utf-8',
-  'print.js': 'application/javascript; charset=utf-8',
-};
+const APP_ASSETS = new Set(['manage.css', 'manage.js', 'print.css', 'print.js']);
 const MULTIPART_LIMIT = 22 * 1024 * 1024;
 
 export function createApp(options = {}) {
@@ -65,6 +63,26 @@ export function createApp(options = {}) {
     fetch: options.fetchImpl,
   });
   const officeRoles = parseOfficeRoleAssignments(env.OFFICE_ROLES);
+  const assets = options.assets ?? diskAssets(path.join(appDir, 'public'));
+
+  async function sendAsset(res, relative) {
+    const bytes = relative ? await assets.read(relative) : null;
+    if (!bytes) {
+      res.status(404).type('text/plain').send('not found');
+      return;
+    }
+    res.type(assetType(relative)).send(bytes);
+  }
+
+  function assetFolder(dir) {
+    return (req, res, next) => {
+      if (req.method !== 'GET' && req.method !== 'HEAD') {
+        next();
+        return;
+      }
+      sendAsset(res, assetPath(dir, req.path)).catch(next);
+    };
+  }
 
   const app = express();
   app.disable('x-powered-by');
@@ -103,12 +121,9 @@ export function createApp(options = {}) {
 
   app.use(express.urlencoded({ extended: true, limit: '32kb', parameterLimit: 80 }));
 
-  app.use('/login-assets', express.static(path.join(appDir, 'public', 'login'), {
-    index: false,
-    dotfiles: 'deny',
-    redirect: false,
-    fallthrough: false,
-  }));
+  app.use('/login-assets', assetFolder('login'));
+  // Fonts are not private, and the login page needs them before sign-in.
+  app.use('/font-assets', assetFolder('fonts'));
 
   app.get('/login', (req, res) => {
     const next = safeNext(req.query.next);
@@ -234,17 +249,12 @@ export function createApp(options = {}) {
     res.redirect('/login');
   });
 
-  const dashboardScript = path.join(appDir, 'public', 'dashboard', 'dashboard.js');
-  app.get('/dashboard-assets/dashboard.js', (req, res) => {
+  app.get('/dashboard-assets/dashboard.js', async (req, res) => {
     if (!readSession(req)) {
       res.status(401).type('text/plain').send('unauthorized');
       return;
     }
-    res.type('application/javascript');
-    res.sendFile(dashboardScript, (error) => {
-      if (!error || res.headersSent) return;
-      res.status(404).type('text/plain').send('not found');
-    });
+    await sendAsset(res, 'dashboard/dashboard.js');
   });
 
   app.use('/office-assets', (req, res, next) => {
@@ -253,27 +263,18 @@ export function createApp(options = {}) {
       return;
     }
     next();
-  }, express.static(path.join(appDir, 'public', 'office'), {
-    index: false,
-    dotfiles: 'deny',
-    redirect: false,
-    fallthrough: false,
-  }));
+  }, assetFolder('office'));
 
-  app.get('/app-assets/:name', (req, res) => {
+  app.get('/app-assets/:name', async (req, res) => {
     if (!readSession(req)) {
       res.status(401).type('text/plain').send('unauthorized');
       return;
     }
-    if (!Object.hasOwn(APP_ASSETS, req.params.name)) {
+    if (!APP_ASSETS.has(req.params.name)) {
       res.status(404).type('text/plain').send('not found');
       return;
     }
-    res.type(APP_ASSETS[req.params.name]);
-    res.sendFile(path.join(appDir, 'public', 'app', req.params.name), (error) => {
-      if (!error || res.headersSent) return;
-      res.status(404).type('text/plain').send('not found');
-    });
+    await sendAsset(res, `app/${req.params.name}`);
   });
 
   app.get('/api/forecast', async (req, res) => {
@@ -363,15 +364,19 @@ export function createApp(options = {}) {
       return;
     }
     try {
-      // The form no longer edits the exchange rate. The database save still
-      // requires the existing fx fields, so they are copied back unchanged.
+      // The USD rate is the only fx field the form edits. A blank rate keeps
+      // the saved fx fields unchanged; the database save requires all of them.
       const forecast = await readForecast(req, res, session);
       if (forecast === undefined) return;
-      if (!forecast?.fx?.rate) {
+      const { fxRate, ...settings } = parsed.value;
+      const fx = fxRate && fxRate !== forecast?.fx?.rate
+        ? usdRateFx(fxRate, forecast?.fx)
+        : forecast?.fx;
+      if (!fx?.rate) {
         sendStoreError(res, session, null);
         return;
       }
-      await store.saveSettings({ ...parsed.value, fx: forecast.fx });
+      await store.saveSettings({ ...settings, fx });
       res.redirect(303, '/capital?saved=1');
     } catch (error) {
       sendStoreError(res, session, error);
@@ -495,10 +500,10 @@ export function createApp(options = {}) {
   app.post('/forecast/items', async (req, res) => {
     const session = requireWrite(req, res);
     if (!session) return;
-    const parsed = parseItem(req.body || {}, session.lang);
+    const forecast = await readForecast(req, res, session);
+    if (forecast === undefined) return;
+    const parsed = parseItem(req.body || {}, session.lang, itemContext(forecast));
     if (!parsed.ok) {
-      const forecast = await readForecast(req, res, session);
-      if (forecast === undefined) return;
       res.status(400).type('html').send(itemFormPage({
         session,
         forecast,
@@ -511,8 +516,6 @@ export function createApp(options = {}) {
     }
     const once = typeof req.body?.once === 'string' ? req.body.once : '';
     if (!claimSubmit(once)) {
-      const forecast = await readForecast(req, res, session);
-      if (forecast === undefined) return;
       res.status(409).type('html').send(itemFormPage({
         session,
         forecast,
@@ -557,9 +560,9 @@ export function createApp(options = {}) {
       res.status(404).type('html').send(notFoundPage(langOf(req)));
       return;
     }
-    const parsed = parseItem(req.body || {}, session.lang);
     const forecast = await readForecast(req, res, session);
     if (forecast === undefined) return;
+    const parsed = parseItem(req.body || {}, session.lang, itemContext(forecast));
     const item = findItem(forecast, req.params.id);
     if (!item) {
       res.status(404).type('html').send(notFoundPage(langOf(req)));
@@ -586,6 +589,67 @@ export function createApp(options = {}) {
 
   app.post('/forecast/items/:id/delete', async (req, res) => {
     await deleteById(req, res, (id) => store.deleteItem(id), '/forecast?saved=1');
+  });
+
+  // A plan is every month of one planned expense, found by any of its row ids.
+  app.get('/forecast/plans/:id', async (req, res) => {
+    const session = requireUser(req, res);
+    if (!session) return;
+    const forecast = await readForecast(req, res, session);
+    if (forecast === undefined) return;
+    const plan = isUuid(req.params.id) ? findPlan(forecast, req.params.id) : null;
+    if (!plan) {
+      res.status(404).type('html').send(notFoundPage(langOf(req)));
+      return;
+    }
+    res.type('html').send(itemFormPage({ session, forecast, csrf: session.csrf, plan, once: newOnce() }));
+  });
+
+  // Saving writes the new months first, then removes the old rows, so a failed
+  // write never leaves the expense missing.
+  app.post('/forecast/plans/:id', async (req, res) => {
+    const session = requireWrite(req, res);
+    if (!session) return;
+    const forecast = await readForecast(req, res, session);
+    if (forecast === undefined) return;
+    const plan = isUuid(req.params.id) ? findPlan(forecast, req.params.id) : null;
+    if (!plan) {
+      res.status(404).type('html').send(notFoundPage(langOf(req)));
+      return;
+    }
+    const parsed = parseItem(req.body || {}, session.lang, itemContext(forecast));
+    if (!parsed.ok || !parsed.value.monthKeys) {
+      res.status(400).type('html').send(itemFormPage({
+        session,
+        forecast,
+        csrf: session.csrf,
+        plan,
+        errors: parsed.ok ? [{ message: tr(session.lang)('Pick a month', 'เลือกเดือน') }] : parsed.errors,
+        values: formValues(req.body),
+        once: newOnce(),
+      }));
+      return;
+    }
+    const once = typeof req.body?.once === 'string' ? req.body.once : '';
+    if (!claimSubmit(once)) {
+      res.redirect(303, '/forecast?saved=1');
+      return;
+    }
+    try {
+      await createPlannedOccurrences(store, parsed.value);
+      for (const row of plan.rows) await store.deleteItem(row.id);
+      res.redirect(303, '/forecast?saved=1');
+    } catch (error) {
+      sendStoreError(res, session, error);
+    }
+  });
+
+  app.post('/forecast/plans/:id/delete', async (req, res) => {
+    await deleteById(req, res, async (id) => {
+      const plan = findPlan(await store.loadForecast(), id);
+      if (!plan) throw Object.assign(new Error('STORE'), { code: 'STORE' });
+      for (const row of plan.rows) await store.deleteItem(row.id);
+    }, '/forecast?saved=1');
   });
 
   app.get('/actual', async (req, res) => {
@@ -1042,6 +1106,18 @@ export function createApp(options = {}) {
   }
 }
 
+// The USD rate and the names already in use, for a planned expense form post.
+function itemContext(forecast) {
+  const groups = new Map();
+  for (const month of forecast?.months || []) {
+    for (const entry of month.items) {
+      const key = entry.name.toLowerCase();
+      if (!groups.has(key)) groups.set(key, { group: entry.group, groupName: entry.groupName });
+    }
+  }
+  return { usdRate: forecast?.fx?.rate || '', groups };
+}
+
 function findItem(forecast, id) {
   if (!forecast || !isUuid(id)) return null;
   for (const month of forecast.months) {
@@ -1062,6 +1138,20 @@ function formValues(body) {
     else if (Array.isArray(value)) values[key] = value.filter((item) => typeof item === 'string');
   }
   return values;
+}
+
+// A rate typed on the Capital page: 1 USD in THB, dated today in Bangkok.
+function usdRateFx(rate, previous = {}) {
+  const today = todayBangkok();
+  return {
+    ...previous,
+    base: 'USD',
+    quote: 'THB',
+    rate,
+    source: 'Capital page',
+    updatedAt: today,
+    updatedDisplay: today,
+  };
 }
 
 function safeError(error, secretList) {

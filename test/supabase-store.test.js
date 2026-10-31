@@ -28,6 +28,20 @@ test('supabase urls must be https origins', () => {
   assert.equal(createSupabaseStore({}).configured, false);
 });
 
+test('redirects are never followed and fail the request', async () => {
+  const calls = [];
+  const store = createSupabaseStore({
+    url: origin,
+    serviceRoleKey: key,
+    fetch: async (url, options = {}) => {
+      calls.push(options.redirect);
+      return { ...jsonResponse(null, 302), headers: new Headers({ location: 'https://elsewhere.example/' }) };
+    },
+  });
+  await assert.rejects(store.loadForecast(), { code: 'STORE' });
+  assert.deepEqual(calls, ['manual']);
+});
+
 test('reads use text amounts and receipt downloads use a short-lived signed url', async () => {
   const calls = [];
   const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]);

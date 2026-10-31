@@ -216,27 +216,24 @@ test('rendered capital, income, and forecast markup has no reveal containers', (
   }
 });
 
-test('the add-planned-expense repeat section is required only while it is open', () => {
+test('the add-planned-expense end month is required only while a repeat is picked', () => {
   const html = itemFormPage({ session, forecast: example, csrf: 'token' });
-  assert.match(html, /name="repeat"/);
-  assert.match(html, /data-reveal-required/);
+  assert.match(html, /<label class="field month-field reveal-off" for="f-endKey"/);
   assert.deepEqual(hiddenRequiredControls(html), []);
   assert.match(html, /<script src="\/app-assets\/manage\.js" defer><\/script>/);
-  const count = html.match(/<input\b[^>]*\bname="repeatCount"[^>]*>/);
-  assert.ok(count);
-  assert.equal(/\srequired(?:[\s=\/]|>)/.test(count[0]), false);
-  assert.match(count[0], /data-reveal-required/);
-  for (const name of ['frequency']) {
-    const tags = [...html.matchAll(new RegExp(`<input\\b[^>]*\\bname="${name}"[^>]*>`, 'g'))].map((match) => match[0]);
-    assert.equal(tags.length, 3);
-    for (const tag of tags) assert.equal(/\srequired(?:[\s=\/]|>)/.test(tag), false);
-  }
+  const end = html.match(/<input\b[^>]*\bname="endKey"[^>]*>/);
+  assert.ok(end);
+  assert.equal(/\srequired(?:[\s=\/]|>)/.test(end[0]), false);
+  assert.match(end[0], /data-reveal-required/);
+  const tags = [...html.matchAll(/<input\b[^>]*\bname="frequency"[^>]*>/g)].map((match) => match[0]);
+  assert.equal(tags.length, 4);
+  for (const tag of tags) assert.equal(/\srequired(?:[\s=\/]|>)/.test(tag), false);
   const open = itemFormPage({
     session,
     forecast: example,
     csrf: 'token',
-    values: { repeat: 'on', frequency: 'quarterly', repeatCount: '', monthKey: '2026-01', amount: '10.00', name: 'Row', group: 'tools', groupName: 'Tools' },
+    values: { frequency: 'quarterly', monthKey: '2026-01', endKey: '', value: '10.00', currency: 'THB', name: 'Row' },
   });
-  assert.match(open, /name="repeat"[^>]*\bchecked\b/);
+  assert.match(open, /name="frequency" value="quarterly" checked/);
   assert.deepEqual(hiddenRequiredControls(open), []);
 });
